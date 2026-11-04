@@ -1,0 +1,43 @@
+# Misiekfon Alarm – automatyzacje do Home Assistant
+# Wklej każdą w: Ustawienia -> Automatyzacje -> Nowa -> (⋮) Edytuj w YAML
+# Jeśli w apce ustawisz "Sekret", wpisz ten sam w intent_extras (secret:TWOJ_SEKRET).
+# Jeśli nie używasz sekretu – usuń linię intent_extras.
+
+# --- 1. START ALARMU ---
+alias: Misiekfon Alarm - start
+description: Odpala pełnoekranowy alarm na misiekfonie
+triggers:
+  - trigger: state
+    entity_id: input_boolean.input_boolean_alarm_telefoniczny
+    to: "on"
+actions:
+  - action: notify.mobile_app_misiekfon
+    data:
+      message: command_broadcast_intent
+      title: pl.misiekfon.alarm.START
+      data:
+        intent_package_name: pl.misiekfon.alarm
+        intent_extras: "secret:TWOJ_SEKRET"
+        priority: high
+        ttl: 0
+mode: single
+
+---
+# --- 2. STOP ALARMU (wyłączenie przełącznika w HA gasi alarm na telefonie) ---
+alias: Misiekfon Alarm - stop
+description: Gasi alarm na misiekfonie gdy przełącznik w HA pójdzie na off
+triggers:
+  - trigger: state
+    entity_id: input_boolean.input_boolean_alarm_telefoniczny
+    from: "on"
+    to: "off"
+actions:
+  - action: notify.mobile_app_misiekfon
+    data:
+      message: command_broadcast_intent
+      title: pl.misiekfon.alarm.STOP
+      data:
+        intent_package_name: pl.misiekfon.alarm
+        priority: high
+        ttl: 0
+mode: single
