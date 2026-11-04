@@ -1,15 +1,24 @@
-# SEKURAK – automatyzacja do Home Assistant (jedna, zastępuje wszystkie poprzednie)
-# Ustawienia -> Automatyzacje -> Utwórz -> (⋮) Edytuj w YAML -> wklej -> zapisz.
-# W apce Sekurak wpisz adres webhooka: https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75
-alias: Sekurak - alarm telefonu
-description: Alarm Fold6 przez apkę Sekurak (pełny ekran + WYCISZ ALARM)
+# SEKURAK – jedna automatyzacja do Home Assistant (zastępuje wszystkie poprzednie)
+# Wymaga pomocników (Ustawienia -> Urządzenia i usługi -> Pomocnicy -> Przełącznik):
+#   input_boolean.alarm_domofon, input_boolean.alarm_zalanie
+# W apce Sekurak adres webhooka: https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75
+# Sekret: jeśli ustawisz w apce, zmień intent_extras na: "typ:{{ typ }},secret:TWOJ_SEKRET"
+alias: Sekurak - alarmy telefonu
+description: Ogólny / domofon / zalanie przez apkę Sekurak
 triggers:
   - trigger: state
-    entity_id: input_boolean.input_boolean_alarm_telefoniczny
+    entity_id:
+      - input_boolean.input_boolean_alarm_telefoniczny
+      - input_boolean.alarm_domofon
+      - input_boolean.alarm_zalanie
+    from: "off"
     to: "on"
     id: start
   - trigger: state
-    entity_id: input_boolean.input_boolean_alarm_telefoniczny
+    entity_id:
+      - input_boolean.input_boolean_alarm_telefoniczny
+      - input_boolean.alarm_domofon
+      - input_boolean.alarm_zalanie
     from: "on"
     to: "off"
     id: stop
@@ -19,12 +28,23 @@ triggers:
       - POST
     local_only: false
     id: wycisz
+variables:
+  typ_z_encji:
+    input_boolean.input_boolean_alarm_telefoniczny: ogolny
+    input_boolean.alarm_domofon: domofon
+    input_boolean.alarm_zalanie: zalanie
+  encja_z_typu:
+    ogolny: input_boolean.input_boolean_alarm_telefoniczny
+    domofon: input_boolean.alarm_domofon
+    zalanie: input_boolean.alarm_zalanie
 actions:
   - choose:
       - conditions:
           - condition: trigger
             id: start
         sequence:
+          - variables:
+              typ: "{{ typ_z_encji[trigger.entity_id] }}"
           - repeat:
               count: 2
               sequence:
@@ -34,6 +54,7 @@ actions:
                     data:
                       intent_action: pl.sekurak.START
                       intent_package_name: pl.sekurak.alarm
+                      intent_extras: "typ:{{ typ }}"
                       priority: high
                       ttl: 0
                 - delay:
@@ -48,14 +69,18 @@ actions:
               data:
                 intent_action: pl.sekurak.STOP
                 intent_package_name: pl.sekurak.alarm
+                intent_extras: "typ:{{ typ_z_encji[trigger.entity_id] }}"
                 priority: high
                 ttl: 0
       - conditions:
           - condition: trigger
             id: wycisz
+          - condition: template
+            value_template: "{{ (trigger.json.typy | default([])) | length > 0 }}"
         sequence:
           - action: input_boolean.turn_off
             target:
-              entity_id: input_boolean.input_boolean_alarm_telefoniczny
-mode: restart
-max_exceeded: silent
+              entity_id: >
+                {{ trigger.json.typy | select('in', encja_z_typu) | map('extract', encja_z_typu) | list }}
+mode: parallel
+max: 10

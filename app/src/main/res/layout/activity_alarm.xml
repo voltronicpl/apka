@@ -4,12 +4,20 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_alarm">
 
-    <!-- Czerwona poświata "oddychająca" w tle -->
+    <!-- Tło zdjęciowe (domofon / zalanie) -->
+    <ImageView
+        android:id="@+id/bgImage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@null"
+        android:scaleType="centerCrop"
+        android:visibility="gone" />
+
+    <!-- Poświata "oddychająca" w kolorze typu -->
     <View
         android:id="@+id/glow"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/bg_alarm_glow" />
+        android:layout_height="match_parent" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -19,38 +27,37 @@
         android:paddingStart="24dp"
         android:paddingTop="48dp"
         android:paddingEnd="24dp"
-        android:paddingBottom="40dp">
+        android:paddingBottom="36dp">
 
-        <LinearLayout
+        <!-- Dzwonek z falami (dla typu bez zdjęcia) -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:gravity="center"
-            android:orientation="vertical">
+            android:layout_weight="1">
 
             <FrameLayout
+                android:id="@+id/bellBox"
                 android:layout_width="260dp"
-                android:layout_height="260dp">
+                android:layout_height="260dp"
+                android:layout_gravity="center">
 
                 <View
                     android:id="@+id/ring"
                     android:layout_width="160dp"
                     android:layout_height="160dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_ring" />
+                    android:layout_gravity="center" />
 
                 <View
                     android:id="@+id/ring2"
                     android:layout_width="160dp"
                     android:layout_height="160dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_ring" />
+                    android:layout_gravity="center" />
 
                 <View
+                    android:id="@+id/bellCircle"
                     android:layout_width="160dp"
                     android:layout_height="160dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_bell_circle" />
+                    android:layout_gravity="center" />
 
                 <ImageView
                     android:id="@+id/bell"
@@ -58,52 +65,65 @@
                     android:layout_height="96dp"
                     android:layout_gravity="center"
                     android:contentDescription="Dzwonek"
-                    android:src="@drawable/ic_bell"
-                    android:tint="@color/red" />
+                    android:src="@drawable/ic_bell" />
             </FrameLayout>
+        </FrameLayout>
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:letterSpacing="0.08"
-                android:shadowColor="#AAFF3B30"
-                android:shadowRadius="24"
-                android:text="ALARM!"
-                android:textColor="@color/red"
-                android:textSize="60sp"
-                android:textStyle="bold" />
+        <!-- Napisy i przyciski – na dole, na ciemnej części tła -->
+        <TextView
+            android:id="@+id/tvEmoji"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="44sp"
+            android:visibility="gone" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:gravity="center"
-                android:text="Alarm uruchomiony przez Home Assistant"
-                android:textColor="@color/text_sub"
-                android:textSize="17sp" />
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.08"
+            android:textSize="56sp"
+            android:textStyle="bold" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:letterSpacing="0.3"
-                android:text="SEKURAK"
-                android:textColor="#55FFFFFF"
-                android:textSize="12sp"
-                android:textStyle="bold" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:gravity="center"
+            android:textColor="#FFE0E0E6"
+            android:textSize="17sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="24dp"
+            android:letterSpacing="0.3"
+            android:text="SEKURAK"
+            android:textColor="#55FFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnStop"
             android:layout_width="match_parent"
-            android:layout_height="128dp"
-            android:background="@drawable/bg_stop_button"
+            android:layout_height="120dp"
             android:elevation="12dp"
             android:letterSpacing="0.05"
             android:text="WYCISZ ALARM"
             android:textColor="@android:color/white"
-            android:textSize="32sp"
+            android:textSize="30sp"
             android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnOpen"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="12dp"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
     </LinearLayout>
 </FrameLayout>

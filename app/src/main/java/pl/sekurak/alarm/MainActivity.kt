@@ -13,6 +13,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -20,24 +21,27 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 
-/** Ekran ustawień: dzwonek, głośność, uprawnienia, test. */
+/** Ekran ustawień: typy alarmów, ustawienia wspólne, webhook, uprawnienia. */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var etWebhook: EditText
     private lateinit var etSecret: EditText
     private lateinit var etAutoStop: EditText
-    private lateinit var tvRingtone: TextView
     private lateinit var tvVolume: TextView
     private lateinit var tvPerms: TextView
+
+    private val ringtoneLabels = mutableMapOf<AlarmType, TextView>()
+    private val pathFields = mutableMapOf<AlarmType, EditText>()
+    private var pendingType: AlarmType = AlarmType.OGOLNY
 
     private val pickRingtone = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         if (r.resultCode == RESULT_OK) {
             val uri: Uri? = if (Build.VERSION.SDK_INT >= 33)
                 r.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
             else @Suppress("DEPRECATION") r.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-            prefs.ringtoneUri = uri
-            refreshRingtone()
+            prefs.setRingtone(pendingType, uri)
+            refreshRingtone(pendingType)
         }
     }
 
@@ -46,8 +50,8 @@ class MainActivity : AppCompatActivity() {
             try {
                 contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (_: Exception) {}
-            prefs.ringtoneUri = uri
-            refreshRingtone()
+            prefs.setRingtone(pendingType, uri)
+            refreshRingtone(pendingType)
         }
     }
 
@@ -60,37 +64,34 @@ class MainActivity : AppCompatActivity() {
         AlarmService.createChannels(this)
 
         etWebhook = findViewById(R.id.etWebhook)
-        etWebhook.setText(prefs.webhookUrl)
         etSecret = findViewById(R.id.etSecret)
         etAutoStop = findViewById(R.id.etAutoStop)
-        tvRingtone = findViewById(R.id.tvRingtone)
         tvVolume = findViewById(R.id.tvVolume)
         tvPerms = findViewById(R.id.tvPerms)
 
+        etWebhook.setText(prefs.webhookUrl)
         etSecret.setText(prefs.secret)
         etAutoStop.setText(prefs.autoStopMin.toString())
+
+        buildTypeCards()
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             save()
             Toast.makeText(this, "Zapisano", Toast.LENGTH_SHORT).show()
         }
 
-        // Dzwonek
-        findViewById<Button>(R.id.btnPickRingtone).setOnClickListener {
-            pickRingtone.launch(Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Dzwonek alarmu")
-                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI,
-                    RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
-                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, prefs.ringtoneUri)
-            })
-        }
-        findViewById<Button>(R.id.btnPickFile).setOnClickListener { pickFile.launch(arrayOf("audio/*")) }
-        findViewById<Button>(R.id.btnDefaultRingtone).setOnClickListener {
-            prefs.ringtoneUri = null
-            refreshRingtone()
+        val tvWebhook = findViewById<TextView>(R.id.tvWebhookStatus)
+        findViewById<Button>(R.id.btnTestWebhook).setOnClickListener {
+            save()
+            tvWebhook.text = "Wysyłam…"
+            val url = prefs.webhookUrl
+            Thread {
+                val r = Webhook.call(url, emptyList()) // test – HA nic nie wyłącza
+                runOnUiThread {
+                    tvWebhook.text = if (r.isSuccess) "✅ HA odebrał webhook"
+                    else "❌ ${r.exceptionOrNull()?.message}"
+                }
+            }.start()
         }
 
         // Głośność
@@ -110,10 +111,6 @@ class MainActivity : AppCompatActivity() {
             isChecked = prefs.forceVolume
             setOnCheckedChangeListener { _, c -> prefs.forceVolume = c }
         }
-        findViewById<SwitchCompat>(R.id.swVibrate).apply {
-            isChecked = prefs.vibrate
-            setOnCheckedChangeListener { _, c -> prefs.vibrate = c }
-        }
 
         // Uprawnienia
         findViewById<Button>(R.id.btnPermNotif).setOnClickListener {
@@ -128,27 +125,55 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnPermOverlay).setOnClickListener {
             openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
         }
+    }
 
-        val tvWebhook = findViewById<TextView>(R.id.tvWebhookStatus)
-        findViewById<Button>(R.id.btnTestWebhook).setOnClickListener {
-            save()
-            tvWebhook.text = "Wysyłam…"
-            val url = prefs.webhookUrl
-            Thread {
-                val r = Webhook.call(url)
-                runOnUiThread {
-                    tvWebhook.text = if (r.isSuccess) "✅ HA odebrał webhook"
-                    else "❌ ${r.exceptionOrNull()?.message}"
+    /** Kafelek ustawień dla każdego typu alarmu. */
+    private fun buildTypeCards() {
+        val container = findViewById<LinearLayout>(R.id.typesContainer)
+        for (t in AlarmType.entries) {
+            val card = layoutInflater.inflate(R.layout.item_type, container, false)
+            card.findViewById<TextView>(R.id.tvTypeTitle).apply {
+                text = "${t.emoji}  ${t.label}"
+                setTextColor(t.color)
+            }
+            ringtoneLabels[t] = card.findViewById(R.id.tvTypeRingtone)
+            card.findViewById<Button>(R.id.btnTypeRingtone).setOnClickListener {
+                pendingType = t
+                pickRingtone.launch(Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                    putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALL)
+                    putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Dzwonek: ${t.label}")
+                    putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                    putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                    putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI,
+                        RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+                    putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, prefs.ringtone(t))
+                })
+            }
+            card.findViewById<Button>(R.id.btnTypeFile).setOnClickListener {
+                pendingType = t
+                pickFile.launch(arrayOf("audio/*"))
+            }
+            card.findViewById<Button>(R.id.btnTypeDefault).setOnClickListener {
+                prefs.setRingtone(t, null)
+                refreshRingtone(t)
+            }
+            card.findViewById<SwitchCompat>(R.id.swTypeVibrate).apply {
+                isChecked = prefs.vibrate(t)
+                setOnCheckedChangeListener { _, c -> prefs.setVibrate(t, c) }
+            }
+            val et = card.findViewById<EditText>(R.id.etTypePath)
+            et.setText(prefs.openPath(t))
+            pathFields[t] = et
+            card.findViewById<Button>(R.id.btnTypeTest).apply {
+                text = "Testuj: ${t.label}"
+                setOnClickListener {
+                    save()
+                    AlarmService.start(this@MainActivity, t)
                 }
-            }.start()
+            }
+            container.addView(card)
+            refreshRingtone(t)
         }
-
-        findViewById<Button>(R.id.btnTestAlarm).setOnClickListener {
-            save()
-            AlarmService.start(this)
-        }
-
-        refreshRingtone()
     }
 
     override fun onResume() {
@@ -165,16 +190,17 @@ class MainActivity : AppCompatActivity() {
         prefs.webhookUrl = etWebhook.text.toString()
         prefs.secret = etSecret.text.toString()
         prefs.autoStopMin = etAutoStop.text.toString().toIntOrNull() ?: 0
+        pathFields.forEach { (t, et) -> prefs.setOpenPath(t, et.text.toString()) }
     }
 
-    private fun refreshRingtone() {
-        val uri = prefs.ringtoneUri
+    private fun refreshRingtone(t: AlarmType) {
+        val uri = prefs.ringtone(t)
         val name = if (uri == null) "Domyślny dźwięk alarmu" else try {
             RingtoneManager.getRingtone(this, uri)?.getTitle(this) ?: uri.lastPathSegment
         } catch (_: Exception) {
             uri.lastPathSegment
         }
-        tvRingtone.text = "Dzwonek: $name"
+        ringtoneLabels[t]?.text = "Dzwonek: $name"
     }
 
     private fun refreshPerms() {

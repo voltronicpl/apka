@@ -6,9 +6,18 @@ Start/stop z HA idzie przez Companion App. Powrót (wyciszenie na telefonie) idz
 ## Jak to działa
 | Kierunek | Sygnał | Co się dzieje |
 |---|---|---|
-| HA → telefon | `pl.sekurak.START` | przełącznik ON → pełny ekran, dzwonek, wibracje |
-| HA → telefon | `pl.sekurak.STOP` | przełącznik OFF w HA → telefon gasi alarm |
-| telefon → HA | webhook | alarm wyciszony na telefonie → HA wyłącza przełącznik |
+| HA → telefon | `pl.sekurak.START` + typ | przełącznik ON → pełny ekran (tło/kolor/dzwonek wg typu), wibracje |
+| HA → telefon | `pl.sekurak.STOP` + typ | przełącznik OFF w HA → telefon gasi ten typ |
+| telefon → HA | webhook (lista typów) | alarm wyciszony na telefonie → HA wyłącza właściwe przełączniki |
+
+## Typy alarmów
+| Typ | Przełącznik w HA | Wygląd |
+|---|---|---|
+| ogólny | `input_boolean.input_boolean_alarm_telefoniczny` | czerwony, dzwonek |
+| domofon | `input_boolean.alarm_domofon` | zielony, zdjęcie furtki |
+| zalanie | `input_boolean.alarm_zalanie` | niebieski, zdjęcie kropli |
+
+Priorytet przy kilku naraz: zalanie > ogólny > domofon. Każdy typ: własny dzwonek, wibracje i opcjonalna karta HA do otwarcia po wyciszeniu (przycisk WYCISZ I OTWÓRZ).
 
 ## Instalacja
 1. Ściągnij `Sekurak.apk` z zakładki **Releases** i zainstaluj.
@@ -19,4 +28,4 @@ Start/stop z HA idzie przez Companion App. Powrót (wyciszenie na telefonie) idz
 6. W apce „TESTUJ ALARM”, potem przełącz `input_boolean` w HA.
 
 ## Ustawienia w apce
-Dzwonek systemowy lub własny plik, głośność + wymuszanie, wibracje, auto-wyłączenie po X minutach, opcjonalny sekret.
+Per typ: dzwonek (systemowy/plik), wibracje, karta HA do otwarcia, test. Wspólne: głośność + wymuszanie, auto-wyłączenie, webhook, sekret.

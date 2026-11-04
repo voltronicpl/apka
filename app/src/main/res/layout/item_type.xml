@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/Card">
+
+    <TextView
+        android:id="@+id/tvTypeTitle"
+        style="@style/Section" />
+
+    <TextView
+        android:id="@+id/tvTypeRingtone"
+        style="@style/Info"
+        android:textColor="@color/text" />
+
+    <Button
+        android:id="@+id/btnTypeRingtone"
+        style="@style/Btn"
+        android:text="Wybierz dzwonek systemowy" />
+
+    <Button
+        android:id="@+id/btnTypeFile"
+        style="@style/Btn"
+        android:text="Wybierz własny plik audio" />
+
+    <Button
+        android:id="@+id/btnTypeDefault"
+        style="@style/Btn"
+        android:text="Przywróć domyślny" />
+
+    <androidx.appcompat.widget.SwitchCompat
+        android:id="@+id/swTypeVibrate"
+        style="@style/Sw"
+        android:text="Wibracje" />
+
+    <TextView
+        style="@style/Info"
+        android:layout_marginTop="12dp"
+        android:text="Po wyciszeniu otwórz kartę HA (puste = nie otwieraj):" />
+
+    <EditText
+        android:id="@+id/etTypePath"
+        style="@style/Field"
+        android:hint="np. /lovelace/domofon"
+        android:inputType="textUri" />
+
+    <Button
+        android:id="@+id/btnTypeTest"
+        style="@style/Btn"
+        android:text="Testuj" />
+</LinearLayout>

@@ -11,13 +11,16 @@ import androidx.core.app.NotificationCompat
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Wysyła webhook do HA po wyciszeniu alarmu (HA wyłącza przełącznik). */
+/** Webhook do HA po wyciszeniu alarmu: wysyła listę wyciszonych typów, HA wyłącza ich przełączniki. */
 object Webhook {
     private const val CH_INFO = "sekurak_info"
     private const val NOTIF_FAIL = 2
 
-    /** Jedno wywołanie. Wołać poza wątkiem UI. */
-    fun call(url: String): Result<Unit> = runCatching {
+    private fun body(types: List<AlarmType>) =
+        """{"zrodlo":"sekurak","typy":[${types.joinToString(",") { "\"${it.key}\"" }}]}"""
+
+    /** Jedno wywołanie. Wołać poza wątkiem UI. Pusta lista = test (HA nic nie wyłącza). */
+    fun call(url: String, types: List<AlarmType>): Result<Unit> = runCatching {
         require(url.startsWith("http")) { "Brak adresu webhooka w ustawieniach" }
         val c = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
@@ -27,7 +30,7 @@ object Webhook {
             setRequestProperty("Content-Type", "application/json")
         }
         try {
-            c.outputStream.use { it.write("""{"zrodlo":"sekurak"}""".toByteArray()) }
+            c.outputStream.use { it.write(body(types).toByteArray()) }
             val code = c.responseCode
             if (code !in 200..299) error("HA odpowiedział HTTP $code")
         } finally {
@@ -36,13 +39,13 @@ object Webhook {
     }
 
     /** W tle, 3 próby co 2 s. Przy błędzie toast + powiadomienie. */
-    fun sendWycisz(context: Context) {
+    fun sendWycisz(context: Context, types: List<AlarmType>) {
         val app = context.applicationContext
         val url = Prefs(app).webhookUrl
         Thread {
             var r: Result<Unit> = Result.failure(IllegalStateException("?"))
             for (i in 0 until 3) {
-                r = call(url)
+                r = call(url, types)
                 if (r.isSuccess) break
                 if (i < 2) Thread.sleep(2000)
             }

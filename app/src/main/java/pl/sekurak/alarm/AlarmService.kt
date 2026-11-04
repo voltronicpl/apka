@@ -27,7 +27,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 
-/** Serwis trzymający alarm: dźwięk w pętli, wibracje, pełnoekranowe powiadomienie. */
+/**
+ * Serwis trzymający alarm: dźwięk w pętli, wibracje, pełnoekranowe powiadomienie.
+ * Może mieć kilka aktywnych typów naraz – gra ten z najwyższym priorytetem.
+ */
 class AlarmService : Service() {
 
     private var player: MediaPlayer? = null
@@ -36,15 +39,30 @@ class AlarmService : Service() {
     private var savedVolume = -1
     private val handler = Handler(Looper.getMainLooper())
     private val autoStop = Runnable { stopAlarm(syncHa = true) }
+    private val active = linkedSetOf<AlarmType>()
+
+    /** Typ, który aktualnie gra i jest pokazany na ekranie. */
+    var current: AlarmType = AlarmType.OGOLNY
+        private set
+
+    fun activeTypes(): List<AlarmType> = active.toList()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val type = AlarmType.from(intent?.getStringExtra(EXTRA_TYPE))
+
         if (instance === this) {
+            // Kolejny alarm w trakcie – dołącz i ewentualnie przełącz na ważniejszy.
+            active += type
+            val top = active.maxBy { it.priority }
+            if (top != current) switchTo(top)
             showActivity()
             return START_NOT_STICKY
         }
+
         createChannels(this)
+        current = type
         try {
             ServiceCompat.startForeground(
                 this, NOTIF_ALARM, buildNotification(),
@@ -56,16 +74,39 @@ class AlarmService : Service() {
             return START_NOT_STICKY
         }
         instance = this
+        active.clear()
+        active += type
         getSystemService(NotificationManager::class.java).cancel(AlarmReceiver.NOTIF_FALLBACK)
 
         wakeScreen()
-        startSound()
-        startVibration()
+        applyVolume()
+        startSound(current)
+        startVibration(current)
         showActivity()
 
         val min = Prefs(this).autoStopMin
         if (min > 0) handler.postDelayed(autoStop, min * 60_000L)
         return START_NOT_STICKY
+    }
+
+    private fun switchTo(t: AlarmType) {
+        current = t
+        stopSoundAndVibration()
+        startSound(t)
+        startVibration(t)
+        getSystemService(NotificationManager::class.java).notify(NOTIF_ALARM, buildNotification())
+        AlarmActivity.refreshAll()
+    }
+
+    /** Usuwa jeden typ (wyłączony w HA). Gdy nic nie zostanie – kończy alarm. */
+    fun removeType(t: AlarmType) {
+        active -= t
+        if (active.isEmpty()) {
+            stopAlarm(syncHa = false)
+        } else {
+            val top = active.maxBy { it.priority }
+            if (top != current) switchTo(top)
+        }
     }
 
     private fun buildNotification(): Notification {
@@ -80,13 +121,14 @@ class AlarmService : Service() {
         )
         return NotificationCompat.Builder(this, CH_ALARM)
             .setSmallIcon(R.drawable.ic_bell)
-            .setContentTitle("ALARM!")
-            .setContentText("Alarm uruchomiony przez Home Assistant")
-            .setColor(0xFFFF3B30.toInt())
+            .setContentTitle("${current.emoji} ${current.title}")
+            .setContentText(current.subtitle)
+            .setColor(current.color)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setFullScreenIntent(full, true)
             .setContentIntent(full)
             .addAction(0, "WYCISZ ALARM", dismiss)
@@ -115,20 +157,22 @@ class AlarmService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun startSound() {
+    private fun applyVolume() {
         val prefs = Prefs(this)
+        if (!prefs.forceVolume) return
         val am = getSystemService(AudioManager::class.java)
-        if (prefs.forceVolume) {
-            savedVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
-            val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
-            am.setStreamVolume(AudioManager.STREAM_ALARM, maxOf(1, max * prefs.volume / 100), 0)
-        }
+        savedVolume = am.getStreamVolume(AudioManager.STREAM_ALARM)
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+        am.setStreamVolume(AudioManager.STREAM_ALARM, maxOf(1, max * prefs.volume / 100), 0)
+    }
+
+    private fun startSound(t: AlarmType) {
         val attrs = AudioAttributes.Builder()
             .setUsage(AudioAttributes.USAGE_ALARM)
             .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
             .build()
         val candidates = listOfNotNull(
-            prefs.ringtoneUri,
+            Prefs(this).ringtone(t),
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM),
             RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
         )
@@ -150,13 +194,18 @@ class AlarmService : Service() {
     }
 
     @Suppress("DEPRECATION")
-    private fun startVibration() {
-        if (!Prefs(this).vibrate) return
+    private fun startVibration(t: AlarmType) {
+        if (!Prefs(this).vibrate(t)) return
         val v = if (Build.VERSION.SDK_INT >= 31)
             getSystemService(VibratorManager::class.java).defaultVibrator
         else getSystemService(Vibrator::class.java)
         vibrator = v
-        val effect = VibrationEffect.createWaveform(longArrayOf(0, 800, 500), 0)
+        val pattern = when (t) {
+            AlarmType.DOMOFON -> longArrayOf(0, 300, 200, 300, 1000) // dzyń-dzyń
+            AlarmType.ZALANIE -> longArrayOf(0, 1200, 400)
+            AlarmType.OGOLNY -> longArrayOf(0, 800, 500)
+        }
+        val effect = VibrationEffect.createWaveform(pattern, 0)
         if (Build.VERSION.SDK_INT >= 33) {
             v.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
         } else {
@@ -164,11 +213,7 @@ class AlarmService : Service() {
         }
     }
 
-    /** Gasi wszystko lokalnie natychmiast. syncHa = wyślij webhook do HA. Wołać z wątku UI. */
-    fun stopAlarm(syncHa: Boolean) {
-        if (instance !== this) return
-        instance = null
-        handler.removeCallbacks(autoStop)
+    private fun stopSoundAndVibration() {
         player?.let {
             try { it.stop() } catch (_: Exception) {}
             it.release()
@@ -176,6 +221,16 @@ class AlarmService : Service() {
         player = null
         vibrator?.cancel()
         vibrator = null
+    }
+
+    /** Gasi wszystko lokalnie natychmiast. syncHa = webhook do HA z listą typów. Wołać z wątku UI. */
+    fun stopAlarm(syncHa: Boolean) {
+        if (instance !== this) return
+        instance = null
+        val types = active.toList()
+        active.clear()
+        handler.removeCallbacks(autoStop)
+        stopSoundAndVibration()
         if (savedVolume >= 0) {
             getSystemService(AudioManager::class.java)
                 .setStreamVolume(AudioManager.STREAM_ALARM, savedVolume, 0)
@@ -186,7 +241,7 @@ class AlarmService : Service() {
         AlarmActivity.closeAll()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
-        if (syncHa) Webhook.sendWycisz(this)
+        if (syncHa) Webhook.sendWycisz(this, types)
     }
 
     override fun onDestroy() {
@@ -197,6 +252,7 @@ class AlarmService : Service() {
     companion object {
         const val CH_ALARM = "sekurak_alarm"
         const val NOTIF_ALARM = 1
+        const val EXTRA_TYPE = "typ"
         private const val TAG = "Sekurak"
 
         @Volatile
@@ -205,19 +261,25 @@ class AlarmService : Service() {
 
         val running: Boolean get() = instance != null
 
-        fun start(c: Context) {
-            ContextCompat.startForegroundService(c, Intent(c, AlarmService::class.java))
+        fun start(c: Context, type: AlarmType) {
+            ContextCompat.startForegroundService(
+                c, Intent(c, AlarmService::class.java).putExtra(EXTRA_TYPE, type.key)
+            )
         }
 
-        /** Kończy alarm niezależnie od stanu (też tryb awaryjny bez serwisu). syncHa = webhook do HA. */
-        fun finishAlarm(c: Context, syncHa: Boolean) {
+        /**
+         * Kończy alarm.
+         *  syncHa = true  -> wycisza wszystko i wysyła webhook (przycisk WYCISZ),
+         *  syncHa = false + type -> HA wyłączył ten typ, gasimy tylko jego.
+         */
+        fun finishAlarm(c: Context, syncHa: Boolean, type: AlarmType? = null) {
             val svc = instance
             if (svc != null) {
-                svc.stopAlarm(syncHa)
+                if (!syncHa && type != null) svc.removeType(type) else svc.stopAlarm(syncHa)
             } else {
                 c.getSystemService(NotificationManager::class.java).cancel(AlarmReceiver.NOTIF_FALLBACK)
                 AlarmActivity.closeAll()
-                if (syncHa) Webhook.sendWycisz(c)
+                if (syncHa) Webhook.sendWycisz(c, listOf(AlarmReceiver.fallbackType))
             }
         }
 
