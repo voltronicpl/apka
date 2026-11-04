@@ -1,4 +1,4 @@
-package pl.misiekfon.alarm
+package pl.sekurak.alarm
 
 import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
@@ -32,11 +32,17 @@ class AlarmActivity : AppCompatActivity() {
         open += this
         setContentView(R.layout.activity_alarm)
 
-        pulse(findViewById(R.id.ring), 1.45f, 1400, fade = true)
+        // Tło: czerwona poświata oddychająca + pulsujące fale wokół dzwonka
+        breathe(findViewById(R.id.glow))
+        pulse(findViewById(R.id.ring), 1.6f, 1600, fade = true)
+        pulse(findViewById(R.id.ring2), 1.6f, 1600, fade = true, delay = 800)
         pulse(findViewById(R.id.bell), 1.12f, 700)
         pulse(findViewById(R.id.btnStop), 1.04f, 700)
 
-        findViewById<Button>(R.id.btnStop).setOnClickListener { dismissAlarm() }
+        findViewById<Button>(R.id.btnStop).setOnClickListener {
+            AlarmService.finishAlarm(this)
+            finish()
+        }
 
         // Wstecz nie zamyka alarmu – tylko przycisk.
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -44,13 +50,16 @@ class AlarmActivity : AppCompatActivity() {
         })
     }
 
-    private fun dismissAlarm() {
-        val svc = AlarmService.instance
-        if (svc != null) svc.stopAlarm(syncHa = true) else AlarmService.syncHaOff(this)
-        finish()
+    private fun breathe(v: View) {
+        val a = ObjectAnimator.ofFloat(v, "alpha", 0.35f, 1f).apply {
+            duration = 1200
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+        }
+        animators += AnimatorSet().apply { play(a); start() }
     }
 
-    private fun pulse(v: View, to: Float, dur: Long, fade: Boolean = false) {
+    private fun pulse(v: View, to: Float, dur: Long, fade: Boolean = false, delay: Long = 0) {
         val mode = if (fade) ValueAnimator.RESTART else ValueAnimator.REVERSE
         val list = mutableListOf(
             ObjectAnimator.ofFloat(v, "scaleX", 1f, to),
@@ -62,7 +71,8 @@ class AlarmActivity : AppCompatActivity() {
             it.repeatCount = ValueAnimator.INFINITE
             it.repeatMode = mode
         }
-        animators += AnimatorSet().apply { playTogether(list.toList()); start() }
+        if (fade) v.alpha = 0f
+        animators += AnimatorSet().apply { playTogether(list.toList()); startDelay = delay; start() }
     }
 
     override fun onDestroy() {

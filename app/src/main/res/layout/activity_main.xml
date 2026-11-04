@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
+    android:background="@drawable/bg_main"
     android:fillViewport="true">
 
     <LinearLayout
@@ -11,151 +11,163 @@
         android:orientation="vertical"
         android:padding="20dp">
 
-        <TextView
-            style="@style/Title"
-            android:text="Misiekfon Alarm" />
-
-        <!-- HOME ASSISTANT -->
-        <TextView style="@style/Section" android:text="Home Assistant" />
-
-        <EditText
-            android:id="@+id/etUrl"
-            style="@style/Field"
-            android:hint="Adres HA, np. http://192.168.1.10:8123"
-            android:inputType="textUri" />
-
-        <EditText
-            android:id="@+id/etToken"
-            style="@style/Field"
-            android:hint="Token dostępu (Long-Lived Access Token)"
-            android:inputType="textPassword" />
-
-        <EditText
-            android:id="@+id/etEntity"
-            style="@style/Field"
-            android:hint="Encja (input_boolean.…)"
-            android:inputType="text" />
-
-        <EditText
-            android:id="@+id/etSecret"
-            style="@style/Field"
-            android:hint="Sekret (opcjonalnie, ten sam co w automatyzacji HA)"
-            android:inputType="text" />
-
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="12dp"
+            android:paddingBottom="8dp">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_bell_launcher" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical">
+
+                <TextView
+                    style="@style/Title"
+                    android:layout_width="wrap_content"
+                    android:text="Sekurak" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Alarm z Home Assistant"
+                    android:textColor="@color/text_sub" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- DŹWIĘK -->
+        <LinearLayout style="@style/Card">
+            <TextView style="@style/Section" android:text="🔔  Dzwonek i wibracje" />
+
+            <TextView
+                android:id="@+id/tvRingtone"
+                style="@style/Info"
+                android:textColor="@color/text" />
+
+            <Button
+                android:id="@+id/btnPickRingtone"
+                style="@style/Btn"
+                android:text="Wybierz dzwonek systemowy" />
+
+            <Button
+                android:id="@+id/btnPickFile"
+                style="@style/Btn"
+                android:text="Wybierz własny plik audio" />
+
+            <Button
+                android:id="@+id/btnDefaultRingtone"
+                style="@style/Btn"
+                android:text="Przywróć domyślny" />
+
+            <TextView
+                android:id="@+id/tvVolume"
+                style="@style/Info"
+                android:layout_marginTop="16dp"
+                android:textColor="@color/text" />
+
+            <SeekBar
+                android:id="@+id/sbVolume"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:max="100" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/swForce"
+                style="@style/Sw"
+                android:text="Wymuś tę głośność na czas alarmu" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/swVibrate"
+                style="@style/Sw"
+                android:text="Wibracje" />
+
+            <TextView
+                style="@style/Info"
+                android:layout_marginTop="12dp"
+                android:text="Automatyczne wyłączenie po (minuty, 0 = nigdy):" />
+
+            <EditText
+                android:id="@+id/etAutoStop"
+                style="@style/Field"
+                android:inputType="number" />
+        </LinearLayout>
+
+        <!-- BEZPIECZEŃSTWO -->
+        <LinearLayout style="@style/Card">
+            <TextView style="@style/Section" android:text="🔒  Sekret (opcjonalnie)" />
+
+            <TextView
+                style="@style/Info"
+                android:text="Jeśli wpiszesz sekret, alarm odpali tylko sygnał z HA z tym samym sekretem." />
+
+            <EditText
+                android:id="@+id/etSecret"
+                style="@style/Field"
+                android:hint="Sekret"
+                android:inputType="text" />
 
             <Button
                 android:id="@+id/btnSave"
                 style="@style/Btn"
-                android:layout_width="0dp"
-                android:layout_weight="1"
                 android:text="Zapisz" />
-
-            <Button
-                android:id="@+id/btnTestHa"
-                style="@style/Btn"
-                android:layout_width="0dp"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="Testuj połączenie" />
         </LinearLayout>
 
-        <TextView
-            android:id="@+id/tvHaStatus"
-            style="@style/Info" />
-
-        <!-- DŹWIĘK -->
-        <TextView style="@style/Section" android:text="Dzwonek i wibracje" />
-
-        <TextView
-            android:id="@+id/tvRingtone"
-            style="@style/Info"
-            android:textColor="@color/text" />
-
-        <Button
-            android:id="@+id/btnPickRingtone"
-            style="@style/Btn"
-            android:text="Wybierz dzwonek systemowy" />
-
-        <Button
-            android:id="@+id/btnPickFile"
-            style="@style/Btn"
-            android:text="Wybierz własny plik audio" />
-
-        <Button
-            android:id="@+id/btnDefaultRingtone"
-            style="@style/Btn"
-            android:text="Przywróć domyślny" />
-
-        <TextView
-            android:id="@+id/tvVolume"
-            style="@style/Info"
-            android:textColor="@color/text" />
-
-        <SeekBar
-            android:id="@+id/sbVolume"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/swForce"
-            style="@style/Sw"
-            android:text="Wymuś tę głośność na czas alarmu" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/swVibrate"
-            style="@style/Sw"
-            android:text="Wibracje" />
-
-        <TextView
-            style="@style/Info"
-            android:text="Automatyczne wyłączenie po (minuty, 0 = nigdy):" />
-
-        <EditText
-            android:id="@+id/etAutoStop"
-            style="@style/Field"
-            android:inputType="number" />
-
         <!-- UPRAWNIENIA -->
-        <TextView style="@style/Section" android:text="Uprawnienia" />
+        <LinearLayout style="@style/Card">
+            <TextView style="@style/Section" android:text="🛡️  Uprawnienia" />
 
-        <TextView
-            android:id="@+id/tvPerms"
-            style="@style/Info"
-            android:textColor="@color/text" />
+            <TextView
+                android:id="@+id/tvPerms"
+                style="@style/Info"
+                android:lineSpacingExtra="4dp"
+                android:textColor="@color/text" />
 
-        <Button
-            android:id="@+id/btnPermNotif"
-            style="@style/Btn"
-            android:text="Zezwól na powiadomienia" />
+            <Button
+                android:id="@+id/btnPermNotif"
+                style="@style/Btn"
+                android:text="Zezwól na powiadomienia" />
 
-        <Button
-            android:id="@+id/btnPermFull"
-            style="@style/Btn"
-            android:text="Zezwól na pełny ekran" />
+            <Button
+                android:id="@+id/btnPermFull"
+                style="@style/Btn"
+                android:text="Zezwól na pełny ekran" />
 
-        <Button
-            android:id="@+id/btnPermBattery"
-            style="@style/Btn"
-            android:text="Wyłącz optymalizację baterii" />
+            <Button
+                android:id="@+id/btnPermBattery"
+                style="@style/Btn"
+                android:text="Wyłącz optymalizację baterii" />
 
-        <Button
-            android:id="@+id/btnPermOverlay"
-            style="@style/Btn"
-            android:text="Wyświetlanie nad innymi aplikacjami" />
+            <Button
+                android:id="@+id/btnPermOverlay"
+                style="@style/Btn"
+                android:text="Wyświetlanie nad innymi aplikacjami" />
+        </LinearLayout>
 
-        <!-- TEST -->
-        <TextView style="@style/Section" android:text="Test" />
+        <!-- COMPANION -->
+        <LinearLayout style="@style/Card">
+            <TextView style="@style/Section" android:text="🏠  Companion App HA" />
+
+            <TextView
+                style="@style/Info"
+                android:lineSpacingExtra="3dp"
+                android:text="W aplikacji Home Assistant: Ustawienia → Companion App → Zarządzaj czujnikami → Last update trigger → włącz i dodaj intenty:\n\npl.sekurak.ALARM\npl.sekurak.KONIEC"
+                android:textIsSelectable="true" />
+        </LinearLayout>
 
         <Button
             android:id="@+id/btnTestAlarm"
             android:layout_width="match_parent"
             android:layout_height="72dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/bg_stop_button"
             android:text="TESTUJ ALARM"
             android:textColor="@android:color/white"
@@ -165,6 +177,7 @@
         <TextView
             style="@style/Info"
             android:layout_marginTop="12dp"
-            android:text="Uwaga: wyciszenie testowego alarmu też wyśle input_boolean.turn_off do HA." />
+            android:gravity="center"
+            android:text="Wyciszenie testu też wyśle KONIEC do HA." />
     </LinearLayout>
 </ScrollView>

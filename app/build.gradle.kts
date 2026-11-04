@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "pl.misiekfon.alarm"
+    namespace = "pl.sekurak.alarm"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "pl.misiekfon.alarm"
+        applicationId = "pl.sekurak.alarm"
         minSdk = 29
         targetSdk = 35
         val run = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1

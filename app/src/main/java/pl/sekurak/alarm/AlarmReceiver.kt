@@ -1,4 +1,4 @@
-package pl.misiekfon.alarm
+package pl.sekurak.alarm
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -13,15 +13,15 @@ import androidx.core.app.NotificationCompat
 
 /**
  * Odbiera sygnały z Companion App HA:
- *  - pl.misiekfon.alarm.START  -> uruchom alarm
- *  - pl.misiekfon.alarm.STOP   -> zakończ alarm (wyłączono w HA, bez odsyłania do HA)
- *  - DISMISS (z przycisku w powiadomieniu) -> wycisz + wyłącz w HA
+ *  - START  -> uruchom alarm
+ *  - STOP   -> wyłączono w HA -> zgaś alarm
+ *  - DISMISS (przycisk w powiadomieniu) -> zgaś alarm
  */
 class AlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
-            ACTION_START -> {
+            Signals.START -> {
                 val secret = Prefs(context).secret
                 if (secret.isNotEmpty() && intent.getStringExtra("secret") != secret) {
                     Log.w(TAG, "START odrzucony – zły sekret")
@@ -36,15 +36,7 @@ class AlarmReceiver : BroadcastReceiver() {
                     postFallback(context)
                 }
             }
-            ACTION_STOP -> {
-                AlarmService.instance?.stopAlarm(syncHa = false)
-                context.getSystemService(NotificationManager::class.java).cancel(NOTIF_FALLBACK)
-                AlarmActivity.closeAll()
-            }
-            ACTION_DISMISS -> {
-                val svc = AlarmService.instance
-                if (svc != null) svc.stopAlarm(syncHa = true) else AlarmService.syncHaOff(context)
-            }
+            Signals.STOP, Signals.DISMISS -> AlarmService.finishAlarm(context)
         }
     }
 
@@ -79,11 +71,8 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     companion object {
-        const val ACTION_START = "pl.misiekfon.alarm.START"
-        const val ACTION_STOP = "pl.misiekfon.alarm.STOP"
-        const val ACTION_DISMISS = "pl.misiekfon.alarm.DISMISS"
-        const val CH_FALLBACK = "misiek_fallback"
+        const val CH_FALLBACK = "sekurak_fallback"
         const val NOTIF_FALLBACK = 3
-        private const val TAG = "MisiekAlarm"
+        private const val TAG = "Sekurak"
     }
 }

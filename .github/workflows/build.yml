@@ -32,21 +32,21 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/misiek.jks"
             export KEYSTORE_PATH="$RUNNER_TEMP/misiek.jks"
             gradle assembleRelease --no-daemon
-            cp app/build/outputs/apk/release/app-release.apk MisiekfonAlarm.apk
+            cp app/build/outputs/apk/release/app-release.apk Sekurak.apk
           else
             echo "Brak sekretów z kluczem – buduję wersję debug"
             gradle assembleDebug --no-daemon
-            cp app/build/outputs/apk/debug/app-debug.apk MisiekfonAlarm.apk
+            cp app/build/outputs/apk/debug/app-debug.apk Sekurak.apk
           fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: MisiekfonAlarm
-          path: MisiekfonAlarm.apk
+          name: Sekurak
+          path: Sekurak.apk
 
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: Misiekfon Alarm v1.0.${{ github.run_number }}
-          files: MisiekfonAlarm.apk
+          name: Sekurak v1.0.${{ github.run_number }}
+          files: Sekurak.apk

@@ -1,4 +1,4 @@
-package pl.misiekfon.alarm
+package pl.sekurak.alarm
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -20,18 +20,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SwitchCompat
 
-/** Ekran konfiguracji: połączenie z HA, dzwonek, głośność, uprawnienia, test. */
+/** Ekran ustawień: dzwonek, głośność, uprawnienia, test. */
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
-    private lateinit var etUrl: EditText
-    private lateinit var etToken: EditText
-    private lateinit var etEntity: EditText
     private lateinit var etSecret: EditText
     private lateinit var etAutoStop: EditText
     private lateinit var tvRingtone: TextView
     private lateinit var tvVolume: TextView
-    private lateinit var tvHaStatus: TextView
     private lateinit var tvPerms: TextView
 
     private val pickRingtone = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
@@ -62,33 +58,18 @@ class MainActivity : AppCompatActivity() {
         prefs = Prefs(this)
         AlarmService.createChannels(this)
 
-        etUrl = findViewById(R.id.etUrl)
-        etToken = findViewById(R.id.etToken)
-        etEntity = findViewById(R.id.etEntity)
         etSecret = findViewById(R.id.etSecret)
         etAutoStop = findViewById(R.id.etAutoStop)
         tvRingtone = findViewById(R.id.tvRingtone)
         tvVolume = findViewById(R.id.tvVolume)
-        tvHaStatus = findViewById(R.id.tvHaStatus)
         tvPerms = findViewById(R.id.tvPerms)
 
-        etUrl.setText(prefs.haUrl)
-        etToken.setText(prefs.token)
-        etEntity.setText(prefs.entityId)
         etSecret.setText(prefs.secret)
         etAutoStop.setText(prefs.autoStopMin.toString())
 
         findViewById<Button>(R.id.btnSave).setOnClickListener {
             save()
             Toast.makeText(this, "Zapisano", Toast.LENGTH_SHORT).show()
-        }
-        findViewById<Button>(R.id.btnTestHa).setOnClickListener {
-            save()
-            tvHaStatus.text = "Łączę…"
-            Thread {
-                val res = HaClient.test(applicationContext)
-                runOnUiThread { tvHaStatus.text = res }
-            }.start()
         }
 
         // Dzwonek
@@ -164,9 +145,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun save() {
-        prefs.haUrl = etUrl.text.toString()
-        prefs.token = etToken.text.toString()
-        prefs.entityId = etEntity.text.toString()
         prefs.secret = etSecret.text.toString()
         prefs.autoStopMin = etAutoStop.text.toString().toIntOrNull() ?: 0
     }
@@ -193,7 +171,7 @@ class MainActivity : AppCompatActivity() {
             appendLine("${m(notif)} Powiadomienia (wymagane)")
             appendLine("${m(full)} Pełny ekran nad blokadą (wymagane)")
             appendLine("${m(batt)} Bez optymalizacji baterii (wymagane)")
-            append("${m(overlay)} Wyświetlanie nad innymi (zalecane – alarm na pełnym ekranie też gdy używasz telefonu)")
+            append("${m(overlay)} Wyświetlanie nad innymi (zalecane – pełny ekran też gdy używasz telefonu)")
         }
     }
 

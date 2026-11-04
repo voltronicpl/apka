@@ -1,6 +1,5 @@
-package pl.misiekfon.alarm
+package pl.sekurak.alarm
 
-import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -24,7 +23,6 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -37,7 +35,7 @@ class AlarmService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var savedVolume = -1
     private val handler = Handler(Looper.getMainLooper())
-    private val autoStop = Runnable { stopAlarm(syncHa = true) }
+    private val autoStop = Runnable { stopAlarm() }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -64,6 +62,7 @@ class AlarmService : Service() {
         startSound()
         startVibration()
         showActivity()
+        Signals.toHa(this, Signals.ALARM) // potwierdzenie do HA: telefon dzwoni
 
         val min = Prefs(this).autoStopMin
         if (min > 0) handler.postDelayed(autoStop, min * 60_000L)
@@ -77,7 +76,7 @@ class AlarmService : Service() {
         )
         val dismiss = PendingIntent.getBroadcast(
             this, 1,
-            Intent(this, AlarmReceiver::class.java).setAction(AlarmReceiver.ACTION_DISMISS),
+            Intent(this, AlarmReceiver::class.java).setAction(Signals.DISMISS),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         return NotificationCompat.Builder(this, CH_ALARM)
@@ -98,7 +97,7 @@ class AlarmService : Service() {
     private fun activityIntent() = Intent(this, AlarmActivity::class.java)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION)
 
-    /** Bezpośrednie otwarcie ekranu (działa z tła tylko z uprawnieniem "wyświetlanie nad innymi"). */
+    /** Bezpośrednie otwarcie ekranu (z tła działa tylko z uprawnieniem "wyświetlanie nad innymi"). */
     private fun showActivity() {
         if (Settings.canDrawOverlays(this)) {
             try { startActivity(activityIntent()) } catch (e: Exception) { Log.w(TAG, "startActivity", e) }
@@ -108,11 +107,11 @@ class AlarmService : Service() {
     @Suppress("DEPRECATION")
     private fun wakeScreen() {
         val pm = getSystemService(PowerManager::class.java)
-        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "misiek:alarm").apply { acquire(30 * 60_000L) }
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "sekurak:alarm").apply { acquire(30 * 60_000L) }
         try {
             pm.newWakeLock(
                 PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
-                "misiek:screen"
+                "sekurak:screen"
             ).acquire(10_000L)
         } catch (_: Exception) {}
     }
@@ -166,8 +165,8 @@ class AlarmService : Service() {
         }
     }
 
-    /** Zatrzymuje wszystko lokalnie natychmiast. syncHa = wyślij turn_off do HA. Wołać z wątku UI. */
-    fun stopAlarm(syncHa: Boolean) {
+    /** Gasi wszystko lokalnie natychmiast i wysyła KONIEC do HA. Wołać z wątku UI. */
+    fun stopAlarm() {
         if (instance !== this) return
         instance = null
         handler.removeCallbacks(autoStop)
@@ -188,20 +187,18 @@ class AlarmService : Service() {
         AlarmActivity.closeAll()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
-        if (syncHa) syncHaOff(applicationContext)
+        Signals.toHa(this, Signals.KONIEC)
     }
 
     override fun onDestroy() {
-        if (instance === this) stopAlarm(syncHa = false)
+        if (instance === this) stopAlarm()
         super.onDestroy()
     }
 
     companion object {
-        const val CH_ALARM = "misiek_alarm"
-        const val CH_INFO = "misiek_info"
+        const val CH_ALARM = "sekurak_alarm"
         const val NOTIF_ALARM = 1
-        const val NOTIF_SYNC = 2
-        private const val TAG = "MisiekAlarm"
+        private const val TAG = "Sekurak"
 
         @Volatile
         var instance: AlarmService? = null
@@ -213,6 +210,18 @@ class AlarmService : Service() {
             ContextCompat.startForegroundService(c, Intent(c, AlarmService::class.java))
         }
 
+        /** Kończy alarm niezależnie od stanu (też tryb awaryjny bez serwisu). */
+        fun finishAlarm(c: Context) {
+            val svc = instance
+            if (svc != null) {
+                svc.stopAlarm()
+            } else {
+                c.getSystemService(NotificationManager::class.java).cancel(AlarmReceiver.NOTIF_FALLBACK)
+                AlarmActivity.closeAll()
+                Signals.toHa(c, Signals.KONIEC)
+            }
+        }
+
         fun createChannels(c: Context) {
             val nm = c.getSystemService(NotificationManager::class.java)
             val alarm = NotificationChannel(CH_ALARM, "Alarm", NotificationManager.IMPORTANCE_HIGH).apply {
@@ -220,41 +229,7 @@ class AlarmService : Service() {
                 enableVibration(false)
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
-            val info = NotificationChannel(CH_INFO, "Informacje", NotificationManager.IMPORTANCE_DEFAULT)
-            nm.createNotificationChannels(listOf(alarm, info))
-        }
-
-        /** Wysyła input_boolean.turn_off do HA w tle; przy błędzie pokazuje info. */
-        fun syncHaOff(c: Context) {
-            val app = c.applicationContext
-            Thread {
-                val r = HaClient.turnOffWithRetry(app)
-                if (r.isFailure) {
-                    val msg = r.exceptionOrNull()?.message ?: "nieznany błąd"
-                    Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(app, "Alarm wyciszony, ale nie udało się wyłączyć go w HA", Toast.LENGTH_LONG).show()
-                    }
-                    notifySyncFail(app, msg)
-                } else {
-                    app.getSystemService(NotificationManager::class.java).cancel(NOTIF_SYNC)
-                }
-            }.start()
-        }
-
-        @SuppressLint("MissingPermission")
-        private fun notifySyncFail(c: Context, msg: String) {
-            createChannels(c)
-            val n = NotificationCompat.Builder(c, CH_INFO)
-                .setSmallIcon(R.drawable.ic_bell)
-                .setContentTitle("Brak synchronizacji z Home Assistant")
-                .setContentText("Alarm wyciszony lokalnie, przełącznik w HA może być dalej ON ($msg)")
-                .setStyle(NotificationCompat.BigTextStyle()
-                    .bigText("Alarm wyciszony lokalnie, ale przełącznik w HA może być dalej ON.\nBłąd: $msg"))
-                .setAutoCancel(true)
-                .build()
-            try {
-                c.getSystemService(NotificationManager::class.java).notify(NOTIF_SYNC, n)
-            } catch (_: SecurityException) {}
+            nm.createNotificationChannel(alarm)
         }
     }
 }

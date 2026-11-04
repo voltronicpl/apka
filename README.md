@@ -1,36 +1,25 @@
-# Misiekfon Alarm
+# Sekurak
 
-Alarm na Samsung Galaxy Z Fold6 odpalany z Home Assistant przez `input_boolean.input_boolean_alarm_telefoniczny`.
+Alarm na Samsung Galaxy Z Fold6 („misiekfon”) odpalany z Home Assistant przez `input_boolean.input_boolean_alarm_telefoniczny`.
+Apka **nie łączy się z HA bezpośrednio** – wszystko idzie przez Companion App HA. Zero dodatkowej baterii.
 
 ## Jak to działa
-1. `input_boolean` → `on` → automatyzacja HA wysyła `command_broadcast_intent` przez `notify.mobile_app_misiekfon`.
-2. Companion App HA przekazuje sygnał `pl.misiekfon.alarm.START` do tej apki (zero dodatkowej baterii – apka śpi do sygnału).
-3. Apka: dzwonek w pętli + wibracje + wybudzenie ekranu + pełny ekran nad blokadą z przyciskiem **WYCISZ ALARM**.
-4. WYCISZ → lokalnie gaśnie natychmiast, potem `input_boolean.turn_off` do HA (3 próby). Jak HA nie odpowie – toast + powiadomienie o braku synchronizacji.
-5. Wyłączenie w HA → automatyzacja wysyła `pl.misiekfon.alarm.STOP` → alarm gaśnie na telefonie.
+| Kierunek | Sygnał | Co się dzieje |
+|---|---|---|
+| HA → telefon | `pl.sekurak.START` | przełącznik ON → pełny ekran, dzwonek, wibracje |
+| HA → telefon | `pl.sekurak.STOP` | przełącznik OFF w HA → telefon gasi alarm |
+| telefon → HA | `pl.sekurak.ALARM` | potwierdzenie: telefon naprawdę dzwoni |
+| telefon → HA | `pl.sekurak.KONIEC` | alarm zgaszony na telefonie → HA wyłącza przełącznik |
 
-## Budowanie
-1. Otwórz folder `MisiekfonAlarm` w Android Studio (Ladybug lub nowsze). Jak zapyta o Gradle Wrapper – zgódź się.
-2. Run na telefonie (USB/Wi-Fi debug) albo Build → Build APK(s).
+Sygnały telefon → HA lądują w czujniku `sensor.misiekfon_last_update_trigger`.
 
-## Pierwsze uruchomienie na telefonie (ważne!)
-1. Otwórz apkę **raz** – Android nie dostarcza sygnałów do apki, której nigdy nie otwarto.
-2. Wpisz adres HA (np. `http://192.168.1.10:8123` albo adres Nabu Casa) i token (Profil w HA → Bezpieczeństwo → Tokeny o długim terminie ważności).
-3. „Testuj połączenie” – ma pokazać ✅ i stan encji.
-4. Nadaj uprawnienia z sekcji „Uprawnienia” – wszystkie mają być ✅:
-   - powiadomienia,
-   - pełny ekran,
-   - bez optymalizacji baterii (bez tego Samsung może zablokować start alarmu z tła),
-   - wyświetlanie nad innymi (żeby pełny ekran wyskakiwał też, gdy akurat używasz telefonu – bez tego pokaże się tylko wyskakujące powiadomienie z przyciskiem WYCISZ ALARM).
-5. Samsung: Ustawienia → Bateria → Limity użycia w tle → dodaj **Misiekfon Alarm** i **Home Assistant** do „Aplikacje nigdy nieusypiane”.
-6. „TESTUJ ALARM”.
-
-## Home Assistant
-Gotowe automatyzacje: `home_assistant_automatyzacje.yaml`.
+## Instalacja
+1. Ściągnij `Sekurak.apk` z zakładki **Releases** i zainstaluj.
+2. Otwórz apkę **raz** i nadaj wszystkie uprawnienia (mają być ✅).
+3. Samsung: Ustawienia → Bateria → Limity użycia w tle → **Aplikacje nigdy nieusypiane** → dodaj Sekurak i Home Assistant.
+4. Companion App HA: Ustawienia → Companion App → Zarządzaj czujnikami → **Last update trigger** → włącz i dodaj intenty `pl.sekurak.ALARM` oraz `pl.sekurak.KONIEC`.
+5. Wklej 3 automatyzacje z `home_assistant_automatyzacje.yaml`.
+6. W apce „TESTUJ ALARM”, potem przełącz `input_boolean` w HA.
 
 ## Ustawienia w apce
-- dzwonek systemowy albo własny plik audio, przywrócenie domyślnego,
-- głośność alarmu (10–100%) + wymuszanie jej na czas alarmu (potem wraca poprzednia),
-- wibracje on/off,
-- auto-wyłączenie po X minutach (0 = nigdy),
-- opcjonalny sekret – żeby inna apka na telefonie nie mogła odpalić alarmu.
+Dzwonek systemowy lub własny plik, głośność + wymuszanie, wibracje, auto-wyłączenie po X minutach, opcjonalny sekret.

@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -14,9 +13,8 @@
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_bell_launcher"
-        android:label="Misiekfon Alarm"
-        android:theme="@style/Theme.Misiek"
-        android:usesCleartextTraffic="true">
+        android:label="Sekurak"
+        android:theme="@style/Theme.Misiek">
 
         <activity
             android:name=".MainActivity"
@@ -44,13 +42,13 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
-        <!-- Odbiera sygnały z Companion App HA (command_broadcast_intent) -->
+        <!-- Sygnały z Companion App HA (command_broadcast_intent) -->
         <receiver
             android:name=".AlarmReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="pl.misiekfon.alarm.START" />
-                <action android:name="pl.misiekfon.alarm.STOP" />
+                <action android:name="pl.sekurak.START" />
+                <action android:name="pl.sekurak.STOP" />
             </intent-filter>
         </receiver>
     </application>
