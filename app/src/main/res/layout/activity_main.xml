@@ -161,6 +161,21 @@
                 android:lineSpacingExtra="3dp"
                 android:text="W aplikacji Home Assistant: Ustawienia → Companion App → Zarządzaj czujnikami → Last update trigger → włącz i dodaj intenty:\n\npl.sekurak.ALARM\npl.sekurak.KONIEC"
                 android:textIsSelectable="true" />
+
+            <TextView
+                style="@style/Info"
+                android:layout_marginTop="12dp"
+                android:text="Test: kliknij i sprawdź w HA stan sensor.misiekfon_last_update_trigger" />
+
+            <Button
+                android:id="@+id/btnSendAlarm"
+                style="@style/Btn"
+                android:text="Wyślij ALARM do HA" />
+
+            <Button
+                android:id="@+id/btnSendKoniec"
+                style="@style/Btn"
+                android:text="Wyślij KONIEC do HA" />
         </LinearLayout>
 
         <Button

@@ -126,6 +126,15 @@ class MainActivity : AppCompatActivity() {
             openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
         }
 
+        findViewById<Button>(R.id.btnSendAlarm).setOnClickListener {
+            Signals.toHa(this, Signals.ALARM)
+            Toast.makeText(this, "Wysłano ALARM (3x co 2 s)", Toast.LENGTH_SHORT).show()
+        }
+        findViewById<Button>(R.id.btnSendKoniec).setOnClickListener {
+            Signals.toHa(this, Signals.KONIEC)
+            Toast.makeText(this, "Wysłano KONIEC (3x co 2 s)", Toast.LENGTH_SHORT).show()
+        }
+
         findViewById<Button>(R.id.btnTestAlarm).setOnClickListener {
             save()
             AlarmService.start(this)
