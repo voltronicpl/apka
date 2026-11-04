@@ -152,30 +152,28 @@
                 android:text="Wyświetlanie nad innymi aplikacjami" />
         </LinearLayout>
 
-        <!-- COMPANION -->
+        <!-- WEBHOOK -->
         <LinearLayout style="@style/Card">
-            <TextView style="@style/Section" android:text="🏠  Companion App HA" />
+            <TextView style="@style/Section" android:text="🏠  Powrót do Home Assistant" />
 
             <TextView
                 style="@style/Info"
-                android:lineSpacingExtra="3dp"
-                android:text="W aplikacji Home Assistant: Ustawienia → Companion App → Zarządzaj czujnikami → Last update trigger → włącz i dodaj intenty:\n\npl.sekurak.ALARM\npl.sekurak.KONIEC"
-                android:textIsSelectable="true" />
+                android:text="Po wyciszeniu alarmu Sekurak wywoła ten webhook, a HA wyłączy przełącznik." />
+
+            <EditText
+                android:id="@+id/etWebhook"
+                style="@style/Field"
+                android:hint="https://pusiloft.ovh/api/webhook/…"
+                android:inputType="textUri" />
+
+            <Button
+                android:id="@+id/btnTestWebhook"
+                style="@style/Btn"
+                android:text="Testuj webhook" />
 
             <TextView
-                style="@style/Info"
-                android:layout_marginTop="12dp"
-                android:text="Test: kliknij i sprawdź w HA stan sensor.misiekfon_last_update_trigger" />
-
-            <Button
-                android:id="@+id/btnSendAlarm"
-                style="@style/Btn"
-                android:text="Wyślij ALARM do HA" />
-
-            <Button
-                android:id="@+id/btnSendKoniec"
-                style="@style/Btn"
-                android:text="Wyślij KONIEC do HA" />
+                android:id="@+id/tvWebhookStatus"
+                style="@style/Info" />
         </LinearLayout>
 
         <Button
@@ -193,6 +191,6 @@
             style="@style/Info"
             android:layout_marginTop="12dp"
             android:gravity="center"
-            android:text="Wyciszenie testu też wyśle KONIEC do HA." />
+            android:text="Wyciszenie testu też wywoła webhook (wyłączy przełącznik w HA)." />
     </LinearLayout>
 </ScrollView>

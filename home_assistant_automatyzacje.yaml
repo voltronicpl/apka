@@ -1,64 +1,61 @@
-# SEKURAK – automatyzacje do Home Assistant
-# Każdą wklej osobno: Ustawienia -> Automatyzacje -> Utwórz -> (⋮) Edytuj w YAML -> zapisz.
-# Sekret: jeśli w apce wpiszesz sekret, wpisz ten sam w intent_extras. Jeśli nie – usuń linię intent_extras.
-
-# ============ 1. HA -> TELEFON: START ============
-alias: Sekurak - start alarmu
-description: Przełącznik ON -> 2 sygnały START do telefonu (drugi dla pewności)
+# SEKURAK – automatyzacja do Home Assistant (jedna, zastępuje wszystkie poprzednie)
+# Ustawienia -> Automatyzacje -> Utwórz -> (⋮) Edytuj w YAML -> wklej -> zapisz.
+# W apce Sekurak wpisz adres webhooka: https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75
+alias: Sekurak - alarm telefonu
+description: Alarm Fold6 przez apkę Sekurak (pełny ekran + WYCISZ ALARM)
 triggers:
   - trigger: state
     entity_id: input_boolean.input_boolean_alarm_telefoniczny
     to: "on"
-actions:
-  - repeat:
-      count: 2
-      sequence:
-        - action: notify.mobile_app_misiekfon
-          data:
-            message: command_broadcast_intent
-            title: pl.sekurak.START
-            data:
-              intent_package_name: pl.sekurak.alarm
-              intent_extras: "secret:TWOJ_SEKRET"
-              priority: high
-              ttl: 0
-        - delay: "00:00:03"
-mode: single
-
----
-# ============ 2. HA -> TELEFON: STOP (wyłączyłeś w HA) ============
-alias: Sekurak - stop alarmu
-description: Przełącznik OFF -> telefon gasi alarm
-triggers:
+    id: start
   - trigger: state
     entity_id: input_boolean.input_boolean_alarm_telefoniczny
     from: "on"
     to: "off"
+    id: stop
+  - trigger: webhook
+    webhook_id: sekurak_wycisz_pudaul75
+    allowed_methods:
+      - POST
+    local_only: false
+    id: wycisz
 actions:
-  - action: notify.mobile_app_misiekfon
-    data:
-      message: command_broadcast_intent
-      title: pl.sekurak.STOP
-      data:
-        intent_package_name: pl.sekurak.alarm
-        priority: high
-        ttl: 0
-mode: single
-
----
-# ============ 3. TELEFON -> HA: KONIEC (wyciszyłeś na telefonie) ============
-alias: Sekurak - wyciszony na telefonie
-description: Telefon zgłosił KONIEC przez Companion -> wyłącz przełącznik
-triggers:
-  - trigger: state
-    entity_id: sensor.misiekfon_last_update_trigger
-    to: pl.sekurak.KONIEC
-conditions:
-  - condition: state
-    entity_id: input_boolean.input_boolean_alarm_telefoniczny
-    state: "on"
-actions:
-  - action: input_boolean.turn_off
-    target:
-      entity_id: input_boolean.input_boolean_alarm_telefoniczny
-mode: single
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: start
+        sequence:
+          - repeat:
+              count: 2
+              sequence:
+                - action: notify.mobile_app_misiekfon
+                  data:
+                    message: command_broadcast_intent
+                    data:
+                      intent_action: pl.sekurak.START
+                      intent_package_name: pl.sekurak.alarm
+                      priority: high
+                      ttl: 0
+                - delay:
+                    seconds: 3
+      - conditions:
+          - condition: trigger
+            id: stop
+        sequence:
+          - action: notify.mobile_app_misiekfon
+            data:
+              message: command_broadcast_intent
+              data:
+                intent_action: pl.sekurak.STOP
+                intent_package_name: pl.sekurak.alarm
+                priority: high
+                ttl: 0
+      - conditions:
+          - condition: trigger
+            id: wycisz
+        sequence:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: input_boolean.input_boolean_alarm_telefoniczny
+mode: restart
+max_exceeded: silent

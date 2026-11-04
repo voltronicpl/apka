@@ -36,7 +36,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     postFallback(context)
                 }
             }
-            Signals.STOP, Signals.DISMISS -> AlarmService.finishAlarm(context)
+            Signals.STOP -> AlarmService.finishAlarm(context, syncHa = false)
+            Signals.DISMISS -> AlarmService.finishAlarm(context, syncHa = true)
         }
     }
 

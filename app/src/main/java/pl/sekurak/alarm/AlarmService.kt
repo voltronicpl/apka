@@ -35,7 +35,7 @@ class AlarmService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private var savedVolume = -1
     private val handler = Handler(Looper.getMainLooper())
-    private val autoStop = Runnable { stopAlarm() }
+    private val autoStop = Runnable { stopAlarm(syncHa = true) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -62,7 +62,6 @@ class AlarmService : Service() {
         startSound()
         startVibration()
         showActivity()
-        Signals.toHa(this, Signals.ALARM) // potwierdzenie do HA: telefon dzwoni
 
         val min = Prefs(this).autoStopMin
         if (min > 0) handler.postDelayed(autoStop, min * 60_000L)
@@ -165,8 +164,8 @@ class AlarmService : Service() {
         }
     }
 
-    /** Gasi wszystko lokalnie natychmiast i wysyła KONIEC do HA. Wołać z wątku UI. */
-    fun stopAlarm() {
+    /** Gasi wszystko lokalnie natychmiast. syncHa = wyślij webhook do HA. Wołać z wątku UI. */
+    fun stopAlarm(syncHa: Boolean) {
         if (instance !== this) return
         instance = null
         handler.removeCallbacks(autoStop)
@@ -187,11 +186,11 @@ class AlarmService : Service() {
         AlarmActivity.closeAll()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
-        Signals.toHa(this, Signals.KONIEC)
+        if (syncHa) Webhook.sendWycisz(this)
     }
 
     override fun onDestroy() {
-        if (instance === this) stopAlarm()
+        if (instance === this) stopAlarm(syncHa = false)
         super.onDestroy()
     }
 
@@ -210,15 +209,15 @@ class AlarmService : Service() {
             ContextCompat.startForegroundService(c, Intent(c, AlarmService::class.java))
         }
 
-        /** Kończy alarm niezależnie od stanu (też tryb awaryjny bez serwisu). */
-        fun finishAlarm(c: Context) {
+        /** Kończy alarm niezależnie od stanu (też tryb awaryjny bez serwisu). syncHa = webhook do HA. */
+        fun finishAlarm(c: Context, syncHa: Boolean) {
             val svc = instance
             if (svc != null) {
-                svc.stopAlarm()
+                svc.stopAlarm(syncHa)
             } else {
                 c.getSystemService(NotificationManager::class.java).cancel(AlarmReceiver.NOTIF_FALLBACK)
                 AlarmActivity.closeAll()
-                Signals.toHa(c, Signals.KONIEC)
+                if (syncHa) Webhook.sendWycisz(c)
             }
         }
 

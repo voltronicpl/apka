@@ -40,7 +40,7 @@ class AlarmActivity : AppCompatActivity() {
         pulse(findViewById(R.id.btnStop), 1.04f, 700)
 
         findViewById<Button>(R.id.btnStop).setOnClickListener {
-            AlarmService.finishAlarm(this)
+            AlarmService.finishAlarm(this, syncHa = true)
             finish()
         }
 

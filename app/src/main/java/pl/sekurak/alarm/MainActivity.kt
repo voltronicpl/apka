@@ -24,6 +24,7 @@ import androidx.appcompat.widget.SwitchCompat
 class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
+    private lateinit var etWebhook: EditText
     private lateinit var etSecret: EditText
     private lateinit var etAutoStop: EditText
     private lateinit var tvRingtone: TextView
@@ -58,6 +59,8 @@ class MainActivity : AppCompatActivity() {
         prefs = Prefs(this)
         AlarmService.createChannels(this)
 
+        etWebhook = findViewById(R.id.etWebhook)
+        etWebhook.setText(prefs.webhookUrl)
         etSecret = findViewById(R.id.etSecret)
         etAutoStop = findViewById(R.id.etAutoStop)
         tvRingtone = findViewById(R.id.tvRingtone)
@@ -126,13 +129,18 @@ class MainActivity : AppCompatActivity() {
             openSettings(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
         }
 
-        findViewById<Button>(R.id.btnSendAlarm).setOnClickListener {
-            Signals.toHa(this, Signals.ALARM)
-            Toast.makeText(this, "Wysłano ALARM (3x co 2 s)", Toast.LENGTH_SHORT).show()
-        }
-        findViewById<Button>(R.id.btnSendKoniec).setOnClickListener {
-            Signals.toHa(this, Signals.KONIEC)
-            Toast.makeText(this, "Wysłano KONIEC (3x co 2 s)", Toast.LENGTH_SHORT).show()
+        val tvWebhook = findViewById<TextView>(R.id.tvWebhookStatus)
+        findViewById<Button>(R.id.btnTestWebhook).setOnClickListener {
+            save()
+            tvWebhook.text = "Wysyłam…"
+            val url = prefs.webhookUrl
+            Thread {
+                val r = Webhook.call(url)
+                runOnUiThread {
+                    tvWebhook.text = if (r.isSuccess) "✅ HA odebrał webhook"
+                    else "❌ ${r.exceptionOrNull()?.message}"
+                }
+            }.start()
         }
 
         findViewById<Button>(R.id.btnTestAlarm).setOnClickListener {
@@ -154,6 +162,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun save() {
+        prefs.webhookUrl = etWebhook.text.toString()
         prefs.secret = etSecret.text.toString()
         prefs.autoStopMin = etAutoStop.text.toString().toIntOrNull() ?: 0
     }

@@ -8,6 +8,11 @@ class Prefs(context: Context) {
     private val p = context.applicationContext
         .getSharedPreferences("sekurak", Context.MODE_PRIVATE)
 
+    /** Adres webhooka HA wywoływany po wyciszeniu alarmu na telefonie. */
+    var webhookUrl: String
+        get() = p.getString("webhook", "")!!.trim()
+        set(v) = p.edit().putString("webhook", v.trim()).apply()
+
     /** Opcjonalny sekret – jeśli ustawiony, sygnał START z HA musi go zawierać. */
     var secret: String
         get() = p.getString("secret", "")!!.trim()
