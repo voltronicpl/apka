@@ -12,7 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 
 /**
- * Sygnały z Companion App HA (extra "typ": ogolny / domofon / zalanie):
+ * Sygnały z Companion App HA (extra "typ": ogolny / domofon / zalanie / alarm / szukaj):
  *  - START  -> uruchom alarm danego typu
  *  - STOP   -> ten typ wyłączono w HA -> zgaś go
  *  - DISMISS (przycisk w powiadomieniu) -> zgaś wszystko + webhook do HA

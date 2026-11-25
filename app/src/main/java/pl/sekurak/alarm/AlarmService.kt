@@ -204,6 +204,8 @@ class AlarmService : Service() {
             AlarmType.DOMOFON -> longArrayOf(0, 300, 200, 300, 1000) // dzyń-dzyń
             AlarmType.ZALANIE -> longArrayOf(0, 1200, 400)
             AlarmType.OGOLNY -> longArrayOf(0, 800, 500)
+            AlarmType.ALARM -> longArrayOf(0, 1000, 200, 1000, 200)
+            AlarmType.SZUKAJ -> longArrayOf(0, 200, 150, 200, 150, 200, 1200)
         }
         val effect = VibrationEffect.createWaveform(pattern, 0)
         if (Build.VERSION.SDK_INT >= 33) {

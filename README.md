@@ -16,8 +16,10 @@ Start/stop z HA idzie przez Companion App. Powrót (wyciszenie na telefonie) idz
 | ogólny | `input_boolean.input_boolean_alarm_telefoniczny` | czerwony, dzwonek |
 | domofon | `input_boolean.alarm_domofon` | zielony, zdjęcie furtki |
 | zalanie | `input_boolean.alarm_zalanie` | niebieski, zdjęcie kropli |
+| alarm | `input_boolean.alarm_ropam` (włącza go alarm Ropam) | czerwony, dom z obwodem alarmu |
+| szukaj | `input_boolean.alarm_szukaj_fon` | turkusowy, telefon z radarem |
 
-Priorytet przy kilku naraz: zalanie > ogólny > domofon. Każdy typ: własny dzwonek, wibracje i opcjonalna karta HA do otwarcia po wyciszeniu (przycisk WYCISZ I OTWÓRZ).
+Priorytet przy kilku naraz: alarm > zalanie > ogólny > domofon > szukaj. Każdy typ: własny dzwonek, wibracje i opcjonalna karta HA do otwarcia po wyciszeniu (przycisk WYCISZ I OTWÓRZ).
 
 ## Instalacja
 1. Ściągnij `Sekurak.apk` z zakładki **Releases** i zainstaluj.

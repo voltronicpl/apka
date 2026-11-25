@@ -1,16 +1,22 @@
 # SEKURAK – jedna automatyzacja do Home Assistant (zastępuje wszystkie poprzednie)
 # Wymaga pomocników (Ustawienia -> Urządzenia i usługi -> Pomocnicy -> Przełącznik):
-#   input_boolean.alarm_domofon, input_boolean.alarm_zalanie
+#   input_boolean.alarm_domofon, input_boolean.alarm_zalanie,
+#   input_boolean.alarm_ropam, input_boolean.alarm_szukaj_fon
+# Alarm Ropam: zamień alarm_control_panel.ROPAM_ZMIEN_MNIE na swoją encję
+#   (może być kilka, w tym binary_sensor – wtedy to: "on").
+# Gdzie jest fon: włącz input_boolean.alarm_szukaj_fon (np. przyciskiem na dashboardzie).
 # W apce Sekurak adres webhooka: https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75
 # Sekret: jeśli ustawisz w apce, zmień intent_extras na: "typ:{{ typ }},secret:TWOJ_SEKRET"
 alias: Sekurak - alarmy telefonu
-description: Ogólny / domofon / zalanie przez apkę Sekurak
+description: Ogólny / domofon / zalanie / alarm / szukaj przez apkę Sekurak
 triggers:
   - trigger: state
     entity_id:
       - input_boolean.input_boolean_alarm_telefoniczny
       - input_boolean.alarm_domofon
       - input_boolean.alarm_zalanie
+      - input_boolean.alarm_ropam
+      - input_boolean.alarm_szukaj_fon
     from: "off"
     to: "on"
     id: start
@@ -19,6 +25,8 @@ triggers:
       - input_boolean.input_boolean_alarm_telefoniczny
       - input_boolean.alarm_domofon
       - input_boolean.alarm_zalanie
+      - input_boolean.alarm_ropam
+      - input_boolean.alarm_szukaj_fon
     from: "on"
     to: "off"
     id: stop
@@ -28,15 +36,24 @@ triggers:
       - POST
     local_only: false
     id: wycisz
+  - trigger: state
+    entity_id:
+      - alarm_control_panel.ROPAM_ZMIEN_MNIE
+    to: triggered
+    id: ropam
 variables:
   typ_z_encji:
     input_boolean.input_boolean_alarm_telefoniczny: ogolny
     input_boolean.alarm_domofon: domofon
     input_boolean.alarm_zalanie: zalanie
+    input_boolean.alarm_ropam: alarm
+    input_boolean.alarm_szukaj_fon: szukaj
   encja_z_typu:
     ogolny: input_boolean.input_boolean_alarm_telefoniczny
     domofon: input_boolean.alarm_domofon
     zalanie: input_boolean.alarm_zalanie
+    alarm: input_boolean.alarm_ropam
+    szukaj: input_boolean.alarm_szukaj_fon
 actions:
   - choose:
       - conditions:
@@ -72,6 +89,13 @@ actions:
                 intent_extras: "typ:{{ typ_z_encji[trigger.entity_id] }}"
                 priority: high
                 ttl: 0
+      - conditions:
+          - condition: trigger
+            id: ropam
+        sequence:
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.alarm_ropam
       - conditions:
           - condition: trigger
             id: wycisz
