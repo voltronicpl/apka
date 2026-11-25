@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sekurak",
+        "description": "Wybierz telefon z apką Sekurak (usługa notify z Companion App).",
+        "data": {
+          "notify_service": "Telefon"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Ten telefon jest już dodany."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sekurak – co odpala alarmy",
+        "description": "Wybierz encje, które włączają dany alarm (alarm_control_panel przy stanie triggered, reszta przy on). Można wybrać kilka.\n\nAdres webhooka do wpisania w apce:\n{webhook_url}",
+        "data": {
+          "encje_alarm": "Alarm (np. Ropam)",
+          "encje_zalanie": "Zalanie",
+          "encje_domofon": "Domofon",
+          "encje_ogolny": "Ogólny",
+          "secret": "Sekret (taki sam jak w apce, puste = brak)"
+        }
+      }
+    }
+  }
+}

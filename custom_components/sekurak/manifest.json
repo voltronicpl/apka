@@ -1,0 +1,13 @@
+{
+  "domain": "sekurak",
+  "name": "Sekurak",
+  "codeowners": ["@voltronicpl"],
+  "config_flow": true,
+  "dependencies": ["webhook"],
+  "documentation": "https://github.com/voltronicpl/apka",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/voltronicpl/apka/issues",
+  "requirements": [],
+  "version": "1.0.8"
+}

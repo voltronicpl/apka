@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Sekurak",
+        "description": "Pick the phone running the Sekurak app (Companion App notify service).",
+        "data": {
+          "notify_service": "Phone"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This phone is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Sekurak – alarm triggers",
+        "description": "Pick entities that start each alarm (alarm_control_panel on triggered, others on on). Multiple allowed.\n\nWebhook URL for the app:\n{webhook_url}",
+        "data": {
+          "encje_alarm": "Alarm (e.g. Ropam)",
+          "encje_zalanie": "Flood",
+          "encje_domofon": "Intercom",
+          "encje_ogolny": "General",
+          "secret": "Secret (same as in the app, empty = none)"
+        }
+      }
+    }
+  }
+}

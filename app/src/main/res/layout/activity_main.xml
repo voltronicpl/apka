@@ -88,12 +88,12 @@
 
             <TextView
                 style="@style/Info"
-                android:text="Po wyciszeniu alarmu Sekurak wywoła ten webhook, a HA wyłączy właściwy przełącznik." />
+                android:text="Adres webhooka skopiuj z HA: Ustawienia → Urządzenia i usługi → Sekurak → Konfiguruj. Po wyciszeniu alarmu HA wyłączy właściwy przełącznik." />
 
             <EditText
                 android:id="@+id/etWebhook"
                 style="@style/Field"
-                android:hint="https://pusiloft.ovh/api/webhook/…"
+                android:hint="https://…/api/webhook/sekurak_…"
                 android:inputType="textUri" />
 
             <Button

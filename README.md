@@ -21,6 +21,16 @@ Start/stop z HA idzie przez Companion App. Powrót (wyciszenie na telefonie) idz
 
 Priorytet przy kilku naraz: alarm > zalanie > ogólny > domofon > szukaj. Każdy typ: własny dzwonek, wibracje i opcjonalna karta HA do otwarcia po wyciszeniu (przycisk WYCISZ I OTWÓRZ).
 
+## Integracja Home Assistant (HACS)
+Zamiast automatyzacji YAML możesz użyć integracji **Sekurak** – encje wybierasz w UI HA.
+1. HACS → ⋮ → Własne repozytoria → `https://github.com/voltronicpl/apka`, typ **Integracja** → pobierz **Sekurak**, restart HA.
+2. Ustawienia → Urządzenia i usługi → Dodaj integrację → **Sekurak** → wybierz telefon (`notify.mobile_app_…`).
+3. **Konfiguruj**: dla Alarmu, Zalania, Domofonu i Ogólnego wybierz dowolnie wiele encji
+   (`alarm_control_panel` odpala przy `triggered`, `binary_sensor`/`input_boolean`/`switch` przy `on`).
+   Tu też widać adres webhooka – wpisz go w apce.
+4. Integracja tworzy przełącznik na każdy typ (ON = dzwoni, OFF = gasi telefon) i przycisk **Gdzie jest fon**.
+5. Wyłącz starą automatyzację z `home_assistant_automatyzacje.yaml`, inaczej alarmy pójdą podwójnie.
+
 ## Instalacja
 1. Ściągnij `Sekurak.apk` z zakładki **Releases** i zainstaluj.
 2. Otwórz apkę **raz** i nadaj wszystkie uprawnienia (mają być ✅).
