@@ -27,7 +27,9 @@ Zamiast automatyzacji YAML możesz użyć integracji **Sekurak** – encje wybie
 2. Ustawienia → Urządzenia i usługi → Dodaj integrację → **Sekurak** → wybierz telefon (`notify.mobile_app_…`).
 3. **Konfiguruj**: dla Alarmu, Zalania, Domofonu i Ogólnego wybierz dowolnie wiele encji
    (`alarm_control_panel` odpala przy `triggered`, `binary_sensor`/`input_boolean`/`switch` przy `on`).
-   Tu też widać adres webhooka – wpisz go w apce.
+   Tu też widać adres webhooka. Domyślnie integracja słucha też na starym `sekurak_wycisz_pudaul75`
+   przez `https://pusiloft.ovh`, a apka bez wpisanego adresu używa właśnie jego – nic nie trzeba wpisywać.
+   Jak w apce jest lokalny `http://…`, apka po porażce sama próbuje tego samego webhooka przez adres zewnętrzny.
 4. Integracja tworzy przełącznik na każdy typ (ON = dzwoni, OFF = gasi telefon) i przycisk **Gdzie jest fon**.
 5. Wyłącz starą automatyzację z `home_assistant_automatyzacje.yaml`, inaczej alarmy pójdą podwójnie.
 

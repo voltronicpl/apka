@@ -88,8 +88,12 @@ class MainActivity : AppCompatActivity() {
             Thread {
                 val r = Webhook.call(url, emptyList()) // test – HA nic nie wyłącza
                 runOnUiThread {
-                    tvWebhook.text = if (r.isSuccess) "✅ HA odebrał webhook"
-                    else "❌ ${r.exceptionOrNull()?.message}"
+                    val ok = r.getOrNull()
+                    tvWebhook.text = when {
+                        ok == null -> "❌ ${r.exceptionOrNull()?.message}"
+                        ok.confirmed -> "✅ Integracja Sekurak odebrała webhook\n${ok.url}"
+                        else -> "⚠️ HA odpowiedział, ale nie integracja Sekurak (stara automatyzacja albo zły adres)\n${ok.url}"
+                    }
                 }
             }.start()
         }

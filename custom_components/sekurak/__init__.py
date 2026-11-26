@@ -19,9 +19,13 @@ from .const import (
     ACTION_START,
     ACTION_STOP,
     ACTIVE_STATES,
+    CONF_EXTERNAL,
+    CONF_EXTRA_WEBHOOK,
     CONF_NOTIFY,
     CONF_SECRET,
     CONF_WEBHOOK_ID,
+    DEFAULT_EXTERNAL,
+    DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
     PACKAGE,
     SIGNAL_UPDATE,
@@ -42,14 +46,32 @@ class Sekurak:
         self.entry = entry
         self.active: dict[str, bool] = {t: False for t in TYPES}
         self._unsubs: list = []
+        self.registered: list[str] = []
 
     @property
     def options(self) -> dict[str, Any]:
         return {**self.entry.data, **self.entry.options}
 
     @property
+    def webhook_ids(self) -> list[str]:
+        """Główne ID (losowe) + dodatkowe (domyślnie stare z YAML)."""
+        ids = [self.entry.data[CONF_WEBHOOK_ID]]
+        extra = (self.options.get(CONF_EXTRA_WEBHOOK, DEFAULT_EXTRA_WEBHOOK) or "").strip()
+        if extra and extra not in ids:
+            ids.append(extra)
+        return ids
+
+    @property
+    def external_base(self) -> str:
+        return (self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
+
+    @property
     def webhook_url(self) -> str:
-        return webhook.async_generate_url(self.hass, self.entry.data[CONF_WEBHOOK_ID])
+        """Adres do wpisania w apce – zawsze zewnętrzny, gdy jest ustawiony."""
+        wid = self.webhook_ids[-1]
+        if self.external_base:
+            return f"{self.external_base}{webhook.async_generate_path(wid)}"
+        return webhook.async_generate_url(self.hass, wid)
 
     # ---------- wysyłka do telefonu ----------
     async def _send(self, action: str, typ: str) -> None:
@@ -135,12 +157,12 @@ class Sekurak:
             body = await request.json()
         except ValueError:
             body = {}
-        typy = body.get("typy") or []
+        typy = [t for t in (body.get("typy") or []) if t in TYPES]
+        _LOGGER.info("Sekurak: webhook %s, wyciszone typy: %s", webhook_id, typy or "test")
         for typ in typy:
-            if typ in TYPES:
-                # telefon już wyciszył – STOP i tak nie szkodzi, ale go oszczędzamy
-                await self.async_stop(typ, notify_phone=False)
-        return web.Response(status=200, text="ok")
+            # telefon już wyciszył – nie wysyłamy mu STOP
+            await self.async_stop(typ, notify_phone=False)
+        return web.json_response({"sekurak": "ok", "wyciszone": typy})
 
     @callback
     def async_unload(self) -> None:
@@ -153,14 +175,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     sek = Sekurak(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = sek
 
-    webhook.async_register(
-        hass,
-        DOMAIN,
-        f"Sekurak ({entry.title})",
-        entry.data[CONF_WEBHOOK_ID],
-        sek.handle_webhook,
-        allowed_methods=["POST"],
-    )
+    registered: list[str] = []
+    for wid in sek.webhook_ids:
+        try:
+            webhook.async_register(
+                hass,
+                DOMAIN,
+                f"Sekurak ({entry.title})",
+                wid,
+                sek.handle_webhook,
+                allowed_methods=["POST"],
+            )
+            registered.append(wid)
+        except ValueError:
+            _LOGGER.warning(
+                "Sekurak: webhook %s jest już zajęty (np. przez starą automatyzację YAML) – pomijam",
+                wid,
+            )
+    sek.registered = registered
     sek.async_listen()
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
@@ -176,5 +208,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if ok:
         sek: Sekurak = hass.data[DOMAIN].pop(entry.entry_id)
         sek.async_unload()
-        webhook.async_unregister(hass, entry.data[CONF_WEBHOOK_ID])
+        for wid in sek.registered:
+            webhook.async_unregister(hass, wid)
     return ok

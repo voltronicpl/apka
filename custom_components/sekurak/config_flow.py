@@ -13,9 +13,13 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_EXTERNAL,
+    CONF_EXTRA_WEBHOOK,
     CONF_NOTIFY,
     CONF_SECRET,
     CONF_WEBHOOK_ID,
+    DEFAULT_EXTERNAL,
+    DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
     TRIGGER_DOMAINS,
     TRIGGER_TYPES,
@@ -87,12 +91,26 @@ class SekurakOptionsFlow(OptionsFlow):
         schema[
             vol.Optional(CONF_SECRET, default=opts.get(CONF_SECRET, ""))
         ] = selector.TextSelector()
+        schema[
+            vol.Optional(CONF_EXTERNAL, default=opts.get(CONF_EXTERNAL, DEFAULT_EXTERNAL))
+        ] = selector.TextSelector()
+        schema[
+            vol.Optional(
+                CONF_EXTRA_WEBHOOK,
+                default=opts.get(CONF_EXTRA_WEBHOOK, DEFAULT_EXTRA_WEBHOOK),
+            )
+        ] = selector.TextSelector()
+
+        external = (opts.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
+        extra = (opts.get(CONF_EXTRA_WEBHOOK, DEFAULT_EXTRA_WEBHOOK) or "").strip()
+        wid = extra or self.config_entry.data[CONF_WEBHOOK_ID]
+        path = webhook.async_generate_path(wid)
+        local = webhook.async_generate_url(self.hass, wid, allow_external=False)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema),
             description_placeholders={
-                "webhook_url": webhook.async_generate_url(
-                    self.hass, self.config_entry.data[CONF_WEBHOOK_ID]
-                )
+                "webhook_url": f"{external}{path}" if external else "(brak adresu zewnętrznego – działa tylko w domu)",
+                "webhook_local": local,
             },
         )

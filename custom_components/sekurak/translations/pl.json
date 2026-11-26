@@ -17,13 +17,15 @@
     "step": {
       "init": {
         "title": "Sekurak – co odpala alarmy",
-        "description": "Wybierz encje, które włączają dany alarm (alarm_control_panel przy stanie triggered, reszta przy on). Można wybrać kilka.\n\nAdres webhooka do wpisania w apce:\n{webhook_url}",
+        "description": "Wybierz encje, które włączają dany alarm (alarm_control_panel przy stanie triggered, reszta przy on). Można wybrać kilka.\n\nAdres webhooka do apki (z zewnątrz): {webhook_url}\nLokalnie (tylko w domu): {webhook_local}",
         "data": {
           "encje_alarm": "Alarm (np. Ropam)",
           "encje_zalanie": "Zalanie",
           "encje_domofon": "Domofon",
           "encje_ogolny": "Ogólny",
-          "secret": "Sekret (taki sam jak w apce, puste = brak)"
+          "secret": "Sekret (taki sam jak w apce, puste = brak)",
+          "external_url": "Adres zewnętrzny HA (np. https://pusiloft.ovh)",
+          "extra_webhook_id": "Dodatkowe ID webhooka (domyślnie stare z automatyzacji YAML)"
         }
       }
     }

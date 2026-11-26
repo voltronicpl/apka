@@ -5,6 +5,13 @@ DOMAIN = "sekurak"
 CONF_NOTIFY = "notify_service"
 CONF_WEBHOOK_ID = "webhook_id"
 CONF_SECRET = "secret"
+CONF_EXTERNAL = "external_url"
+CONF_EXTRA_WEBHOOK = "extra_webhook_id"
+
+# Domyślnie: adres z zewnątrz i stary webhook z automatyzacji YAML,
+# żeby apka działała bez przepisywania adresu.
+DEFAULT_EXTERNAL = "https://pusiloft.ovh"
+DEFAULT_EXTRA_WEBHOOK = "sekurak_wycisz_pudaul75"
 
 PACKAGE = "pl.sekurak.alarm"
 ACTION_START = "pl.sekurak.START"
