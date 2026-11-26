@@ -88,7 +88,7 @@
 
             <TextView
                 style="@style/Info"
-                android:text="Adres webhooka skopiuj z HA: Ustawienia → Urządzenia i usługi → Sekurak → Konfiguruj. Po wyciszeniu alarmu HA wyłączy właściwy przełącznik." />
+                android:text="Adres webhooka przychodzi sam z integracji Sekurak w HA (po restarcie HA albo z pierwszym alarmem). Tu możesz opcjonalnie wpisać zapasowy. Po wyciszeniu alarmu HA wyłączy właściwy przełącznik." />
 
             <EditText
                 android:id="@+id/etWebhook"

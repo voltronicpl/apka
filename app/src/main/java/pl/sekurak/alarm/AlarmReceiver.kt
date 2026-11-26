@@ -22,12 +22,16 @@ class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val type = AlarmType.from(intent.getStringExtra("typ"))
         when (intent.action) {
-            Signals.START -> {
+            Signals.START, Signals.CONFIG -> {
                 val secret = Prefs(context).secret
                 if (secret.isNotEmpty() && intent.getStringExtra("secret") != secret) {
-                    Log.w(TAG, "START odrzucony – zły sekret")
+                    Log.w(TAG, "${intent.action} odrzucony – zły sekret")
                     return
                 }
+                // Integracja HA podaje adres webhooka – zapamiętaj, nic nie trzeba wpisywać
+                val wh = Webhook.decode(intent.getStringExtra("webhook"))
+                if (wh.startsWith("http")) Prefs(context).webhookAuto = wh
+                if (intent.action == Signals.CONFIG) return
                 try {
                     AlarmService.start(context, type)
                 } catch (e: Exception) {

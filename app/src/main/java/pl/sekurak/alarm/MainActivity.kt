@@ -84,15 +84,15 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnTestWebhook).setOnClickListener {
             save()
             tvWebhook.text = "Wysyłam…"
-            val url = prefs.webhookUrl
+            val urls = prefs.webhookUrls
             Thread {
-                val r = Webhook.call(url, emptyList()) // test – HA nic nie wyłącza
+                val r = Webhook.call(urls, emptyList()) // test – HA nic nie wyłącza
                 runOnUiThread {
                     val ok = r.getOrNull()
                     tvWebhook.text = when {
-                        ok == null -> "❌ ${r.exceptionOrNull()?.message}"
-                        ok.confirmed -> "✅ Integracja Sekurak odebrała webhook\n${ok.url}"
-                        else -> "⚠️ HA odpowiedział, ale nie integracja Sekurak (stara automatyzacja albo zły adres)\n${ok.url}"
+                        ok == null -> "❌ Nie działa\n${r.exceptionOrNull()?.message}"
+                        ok.confirmed -> "✅ Integracja Sekurak odebrała webhook\n${ok.log.joinToString("\n")}"
+                        else -> "⚠️ HA odpowiedział, ale nie integracja Sekurak\n${ok.log.joinToString("\n")}"
                     }
                 }
             }.start()

@@ -51,6 +51,7 @@
             <intent-filter>
                 <action android:name="pl.sekurak.START" />
                 <action android:name="pl.sekurak.STOP" />
+                <action android:name="pl.sekurak.CONFIG" />
             </intent-filter>
         </receiver>
     </application>

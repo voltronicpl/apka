@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from typing import Any
+from urllib.parse import quote
 
 from aiohttp import web
 
@@ -14,8 +15,11 @@ from homeassistant.const import Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.helpers.start import async_at_started
 
 from .const import (
+    ACTION_CONFIG,
     ACTION_START,
     ACTION_STOP,
     ACTIVE_STATES,
@@ -27,6 +31,7 @@ from .const import (
     DEFAULT_EXTERNAL,
     DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
+    OLD_DEFAULT_EXTERNAL,
     PACKAGE,
     SIGNAL_UPDATE,
     TRIGGER_TYPES,
@@ -36,6 +41,18 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SWITCH, Platform.BUTTON]
+
+
+def build_webhook_url(hass: HomeAssistant, external: str, webhook_id: str) -> str:
+    """Adres webhooka z zewnątrz: pole z opcji, inaczej z HA (zewnętrzny / Nabu Casa),
+    a w ostateczności lokalny."""
+    path = webhook.async_generate_path(webhook_id)
+    if external:
+        return f"{external.rstrip('/')}{path}"
+    try:
+        return get_url(hass, allow_internal=False, allow_cloud=True, prefer_external=True) + path
+    except NoURLAvailableError:
+        return webhook.async_generate_url(hass, webhook_id)
 
 
 class Sekurak:
@@ -63,23 +80,25 @@ class Sekurak:
 
     @property
     def external_base(self) -> str:
-        return (self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
+        ext = (self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
+        # stary domyślny z v1.0.9 nie prowadzi do HA (404) – ignoruj, weź adres z HA
+        return "" if ext == OLD_DEFAULT_EXTERNAL else ext
 
     @property
     def webhook_url(self) -> str:
-        """Adres do wpisania w apce – zawsze zewnętrzny, gdy jest ustawiony."""
-        wid = self.webhook_ids[-1]
-        if self.external_base:
-            return f"{self.external_base}{webhook.async_generate_path(wid)}"
-        return webhook.async_generate_url(self.hass, wid)
+        return build_webhook_url(self.hass, self.external_base, self.entry.data[CONF_WEBHOOK_ID])
 
     # ---------- wysyłka do telefonu ----------
-    async def _send(self, action: str, typ: str) -> None:
+    async def _send(self, action: str, typ: str | None = None) -> None:
         notify = self.options[CONF_NOTIFY].removeprefix("notify.")
-        extras = f"typ:{typ}"
+        parts = []
+        if typ:
+            parts.append(f"typ:{typ}")
+        # adres webhooka jedzie do telefonu z każdym sygnałem – apka sama go zapamiętuje
+        parts.append(f"webhook:{quote(self.webhook_url, safe='')}:urlencoded")
         secret = (self.options.get(CONF_SECRET) or "").strip()
         if secret:
-            extras += f",secret:{secret}"
+            parts.append(f"secret:{secret}")
         await self.hass.services.async_call(
             "notify",
             notify,
@@ -88,13 +107,21 @@ class Sekurak:
                 "data": {
                     "intent_action": action,
                     "intent_package_name": PACKAGE,
-                    "intent_extras": extras,
+                    "intent_extras": ",".join(parts),
                     "priority": "high",
                     "ttl": 0,
                 },
             },
             blocking=False,
         )
+
+    async def async_send_config(self) -> None:
+        """Wyślij telefonowi sam adres webhooka (po starcie HA / zmianie opcji)."""
+        try:
+            await self._send(ACTION_CONFIG)
+            _LOGGER.info("Sekurak: wysłano adres webhooka do telefonu: %s", self.webhook_url)
+        except Exception as err:  # noqa: BLE001 – brak usługi notify itp.
+            _LOGGER.warning("Sekurak: nie udało się wysłać adresu webhooka: %s", err)
 
     async def async_start(self, typ: str) -> None:
         """Włącz alarm typu. START idzie 2x co 3 s (jak w starej automatyzacji),
@@ -194,6 +221,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
     sek.registered = registered
     sek.async_listen()
+
+    async def _started(_hass: HomeAssistant) -> None:
+        await sek.async_send_config()
+
+    entry.async_on_unload(async_at_started(hass, _started))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
     return True

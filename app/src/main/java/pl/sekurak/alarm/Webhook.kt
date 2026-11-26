@@ -13,33 +13,25 @@ import java.net.URL
 
 /** Webhook do HA po wyciszeniu alarmu: wysyła listę wyciszonych typów, HA wyłącza ich przełączniki. */
 object Webhook {
-    /** Domyślny adres z zewnątrz – działa bez wpisywania czegokolwiek w apce. */
-    const val DEFAULT_BASE = "https://pusiloft.ovh"
-    const val DEFAULT_URL = "$DEFAULT_BASE/api/webhook/sekurak_wycisz_pudaul75"
     private const val CH_INFO = "sekurak_info"
     private const val NOTIF_FAIL = 2
 
     private fun body(types: List<AlarmType>) =
         """{"zrodlo":"sekurak","typy":[${types.joinToString(",") { "\"${it.key}\"" }}]}"""
 
-    /** Wynik: adres, który zadziałał, i czy odpowiedziała integracja Sekurak. */
-    data class Ok(val url: String, val confirmed: Boolean)
+    /** Wynik: adres, który zadziałał, czy odpowiedziała integracja Sekurak, i log prób. */
+    data class Ok(val url: String, val confirmed: Boolean, val log: List<String>)
 
-    /**
-     * Adresy do spróbowania po kolei: wpisany, ten sam webhook przez adres zewnętrzny
-     * (gdy wpisany jest lokalny http://…), i domyślny.
-     */
-    fun candidates(url: String): List<String> {
-        val list = mutableListOf<String>()
-        if (url.startsWith("http")) list += url
-        val i = url.indexOf("/api/webhook/")
-        if (i > 0 && !url.startsWith("https://")) list += DEFAULT_BASE + url.substring(i)
-        list += DEFAULT_URL
-        return list.distinct()
+    class Failed(val log: List<String>) : Exception(log.joinToString("\n"))
+
+    /** Dekoduje adres z intent_extras (może przyjść jako %-zakodowany). */
+    fun decode(v: String?): String {
+        val s = v?.trim().orEmpty()
+        return if (s.contains("%3A", ignoreCase = true)) java.net.URLDecoder.decode(s, "UTF-8") else s
     }
 
-    /** Jedno wywołanie jednego adresu. Zwraca true, gdy odpowiedziała integracja Sekurak. */
-    private fun callOne(url: String, types: List<AlarmType>): Boolean {
+    /** Jedno wywołanie jednego adresu. Zwraca kod HTTP i czy odpowiedziała integracja Sekurak. */
+    private fun callOne(url: String, types: List<AlarmType>): Pair<Int, Boolean> {
         val c = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 6000
@@ -50,9 +42,10 @@ object Webhook {
         try {
             c.outputStream.use { it.write(body(types).toByteArray()) }
             val code = c.responseCode
-            if (code !in 200..299) error("HA odpowiedział HTTP $code")
-            val resp = runCatching { c.inputStream.bufferedReader().use { it.readText() } }.getOrDefault("")
-            return resp.contains("sekurak")
+            val resp = if (code in 200..299)
+                runCatching { c.inputStream.bufferedReader().use { it.readText() } }.getOrDefault("")
+            else ""
+            return code to resp.contains("sekurak")
         } finally {
             c.disconnect()
         }
@@ -61,30 +54,38 @@ object Webhook {
     /**
      * Próbuje kolejnych adresów. Sukces = integracja potwierdziła; jeśli żaden nie
      * potwierdził, ale któryś dał 2xx (np. stara automatyzacja YAML), też sukces.
-     * Wołać poza wątkiem UI. Pusta lista = test (HA nic nie wyłącza).
+     * Wołać poza wątkiem UI. Pusta lista typów = test (HA nic nie wyłącza).
      */
-    fun call(url: String, types: List<AlarmType>): Result<Ok> {
+    fun call(urls: List<String>, types: List<AlarmType>): Result<Ok> {
+        val log = mutableListOf<String>()
+        if (urls.isEmpty()) {
+            log += "Brak adresu – poczekaj, aż HA go przyśle (restart HA albo pierwszy alarm), albo wpisz ręcznie"
+            return Result.failure(Failed(log))
+        }
         var unconfirmed: String? = null
-        var lastErr: Throwable = IllegalStateException("Brak adresu webhooka")
-        for (u in candidates(url)) {
+        for (u in urls) {
             try {
-                if (callOne(u, types)) return Result.success(Ok(u, true))
-                if (unconfirmed == null) unconfirmed = u
+                val (code, ok) = callOne(u, types)
+                when {
+                    ok -> { log += "✅ $u → $code Sekurak"; return Result.success(Ok(u, true, log)) }
+                    code in 200..299 -> { log += "⚠️ $u → $code (to nie integracja Sekurak)"; if (unconfirmed == null) unconfirmed = u }
+                    else -> log += "❌ $u → HTTP $code"
+                }
             } catch (e: Exception) {
-                lastErr = e
+                log += "❌ $u → ${e.javaClass.simpleName}: ${e.message}"
             }
         }
-        return unconfirmed?.let { Result.success(Ok(it, false)) } ?: Result.failure(lastErr)
+        return unconfirmed?.let { Result.success(Ok(it, false, log)) } ?: Result.failure(Failed(log))
     }
 
     /** W tle, 3 próby co 2 s. Przy błędzie toast + powiadomienie. */
     fun sendWycisz(context: Context, types: List<AlarmType>) {
         val app = context.applicationContext
-        val url = Prefs(app).webhookUrl
+        val urls = Prefs(app).webhookUrls
         Thread {
             var r: Result<Ok> = Result.failure(IllegalStateException("?"))
             for (i in 0 until 3) {
-                r = call(url, types)
+                r = call(urls, types)
                 if (r.isSuccess) break
                 if (i < 2) Thread.sleep(2000)
             }

@@ -8,5 +8,6 @@ package pl.sekurak.alarm
 object Signals {
     const val START = "pl.sekurak.START"
     const val STOP = "pl.sekurak.STOP"
+    const val CONFIG = "pl.sekurak.CONFIG" // integracja HA podaje adres webhooka
     const val DISMISS = "pl.sekurak.DISMISS" // wewnętrzny – przycisk w powiadomieniu
 }

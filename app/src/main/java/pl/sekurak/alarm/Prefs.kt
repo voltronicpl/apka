@@ -8,10 +8,19 @@ class Prefs(context: Context) {
     private val p = context.applicationContext
         .getSharedPreferences("sekurak", Context.MODE_PRIVATE)
 
-    /** Adres webhooka HA wywoływany po wyciszeniu alarmu na telefonie. Puste = domyślny. */
+    /** Adres webhooka HA wpisany ręcznie w apce (opcjonalny). */
     var webhookUrl: String
-        get() = p.getString("webhook", "")!!.trim().ifEmpty { Webhook.DEFAULT_URL }
+        get() = p.getString("webhook", "")!!.trim()
         set(v) = p.edit().putString("webhook", v.trim()).apply()
+
+    /** Adres webhooka podany automatycznie przez integrację HA (START/CONFIG). */
+    var webhookAuto: String
+        get() = p.getString("webhook_auto", "")!!.trim()
+        set(v) = p.edit().putString("webhook_auto", v.trim()).apply()
+
+    /** Adresy do spróbowania: najpierw ten od HA, potem wpisany ręcznie. */
+    val webhookUrls: List<String>
+        get() = listOf(webhookAuto, webhookUrl).filter { it.startsWith("http") }.distinct()
 
     /** Opcjonalny sekret – jeśli ustawiony, sygnał START z HA musi go zawierać. */
     var secret: String

@@ -17,14 +17,14 @@
     "step": {
       "init": {
         "title": "Sekurak – alarm triggers",
-        "description": "Pick entities that start each alarm (alarm_control_panel on triggered, others on on). Multiple allowed.\n\nWebhook URL for the app (external): {webhook_url}\nLocal (home only): {webhook_local}",
+        "description": "Pick entities that start each alarm (alarm_control_panel on triggered, others on on). Multiple allowed.\n\nWebhook URL (sent to the app automatically): {webhook_url}\nLocal (home only): {webhook_local}",
         "data": {
           "encje_alarm": "Alarm (e.g. Ropam)",
           "encje_zalanie": "Flood",
           "encje_domofon": "Intercom",
           "encje_ogolny": "General",
           "secret": "Secret (same as in the app, empty = none)",
-          "external_url": "HA external address (e.g. https://pusiloft.ovh)",
+          "external_url": "HA external address (empty = from HA settings / Nabu Casa)",
           "extra_webhook_id": "Extra webhook ID (defaults to the old YAML one)"
         }
       }

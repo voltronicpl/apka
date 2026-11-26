@@ -8,14 +8,16 @@ CONF_SECRET = "secret"
 CONF_EXTERNAL = "external_url"
 CONF_EXTRA_WEBHOOK = "extra_webhook_id"
 
-# Domyślnie: adres z zewnątrz i stary webhook z automatyzacji YAML,
-# żeby apka działała bez przepisywania adresu.
-DEFAULT_EXTERNAL = "https://pusiloft.ovh"
+# Adres zewnętrzny: puste = weź z HA (zewnętrzny URL albo Nabu Casa).
+DEFAULT_EXTERNAL = ""
+OLD_DEFAULT_EXTERNAL = "https://pusiloft.ovh"  # z v1.0.9, dawał 404
+# Stary webhook z automatyzacji YAML – dalej obsługiwany, gdy wolny.
 DEFAULT_EXTRA_WEBHOOK = "sekurak_wycisz_pudaul75"
 
 PACKAGE = "pl.sekurak.alarm"
 ACTION_START = "pl.sekurak.START"
 ACTION_STOP = "pl.sekurak.STOP"
+ACTION_CONFIG = "pl.sekurak.CONFIG"
 
 # Typy alarmów – klucze takie same jak w apce (AlarmType.kt)
 TYPES: dict[str, str] = {
