@@ -38,6 +38,7 @@ from .const import (
     TRIGGER_TYPES,
     TYPES,
     conf_entities,
+    fix_external,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class Sekurak:
 
     @property
     def external_base(self) -> str:
-        return (self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
+        return fix_external(self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL))
 
     @property
     def webhook_url(self) -> str:

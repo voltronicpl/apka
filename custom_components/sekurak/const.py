@@ -9,7 +9,16 @@ CONF_EXTERNAL = "external_url"
 CONF_EXTRA_WEBHOOK = "extra_webhook_id"
 
 # Adres zewnętrzny HA (tak jak w Companion App). Puste = weź z HA (zewnętrzny URL / Nabu Casa).
-DEFAULT_EXTERNAL = "https://pusiloft.ovh"
+DEFAULT_EXTERNAL = "https://www.pusiloft.ovh"
+
+
+def fix_external(url: str) -> str:
+    """Goły pusiloft.ovh nie prowadzi do HA (Cloudflare 404) – zawsze z www."""
+    url = (url or "").strip().rstrip("/")
+    for old in ("https://pusiloft.ovh", "http://pusiloft.ovh"):
+        if url == old or url.startswith(old + "/"):
+            return "https://www.pusiloft.ovh" + url[len(old):]
+    return url
 # Stary webhook z automatyzacji YAML – dalej obsługiwany, gdy wolny.
 DEFAULT_EXTRA_WEBHOOK = "sekurak_wycisz_pudaul75"
 

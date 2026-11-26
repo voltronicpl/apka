@@ -14,7 +14,16 @@ import java.net.URL
 /** Webhook do HA po wyciszeniu alarmu: wysyła listę wyciszonych typów, HA wyłącza ich przełączniki. */
 object Webhook {
     /** Stary webhook (automatyzacja YAML / integracja) – zawsze próbowany na końcu. */
-    const val LEGACY_URL = "https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75"
+    const val LEGACY_URL = "https://www.pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75"
+
+    /** Goły pusiloft.ovh daje 404 z Cloudflare – działa tylko z www. */
+    fun fixHost(url: String): String {
+        val u = url.trim()
+        for (old in listOf("https://pusiloft.ovh/", "http://pusiloft.ovh/")) {
+            if (u.startsWith(old)) return "https://www.pusiloft.ovh/" + u.substring(old.length)
+        }
+        return u
+    }
     private const val CH_INFO = "sekurak_info"
     private const val NOTIF_FAIL = 2
 

@@ -5,7 +5,7 @@
 # Alarm Ropam: zamień alarm_control_panel.ROPAM_ZMIEN_MNIE na swoją encję
 #   (może być kilka, w tym binary_sensor – wtedy to: "on").
 # Gdzie jest fon: włącz input_boolean.alarm_szukaj_fon (np. przyciskiem na dashboardzie).
-# W apce Sekurak adres webhooka: https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75
+# W apce Sekurak adres webhooka: https://www.pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75
 # Sekret: jeśli ustawisz w apce, zmień intent_extras na: "typ:{{ typ }},secret:TWOJ_SEKRET"
 alias: Sekurak - alarmy telefonu
 description: Ogólny / domofon / zalanie / alarm / szukaj przez apkę Sekurak

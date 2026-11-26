@@ -26,6 +26,7 @@ class Prefs(context: Context) {
     /** Adresy: od HA (zewnętrzny, lokalny), wpisany ręcznie, na końcu stary awaryjny. */
     val webhookUrls: List<String>
         get() = listOf(webhookAuto, webhookAuto2, webhookUrl, Webhook.LEGACY_URL)
+            .map(Webhook::fixHost)
             .filter { it.startsWith("http") }.distinct()
 
     /** Opcjonalny sekret – jeśli ustawiony, sygnał START z HA musi go zawierać. */
