@@ -31,6 +31,8 @@ from .const import (
     DEFAULT_EXTERNAL,
     DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
+    LEGACY_HELPERS,
+    TURN_OFF_DOMAINS,
     PACKAGE,
     SIGNAL_UPDATE,
     TRIGGER_TYPES,
@@ -199,7 +201,23 @@ class Sekurak:
         for typ in typy:
             # telefon już wyciszył – nie wysyłamy mu STOP
             await self.async_stop(typ, notify_phone=False)
+            await self._turn_off_sources(typ)
         return web.json_response({"sekurak": "ok", "wyciszone": typy})
+
+    async def _turn_off_sources(self, typ: str) -> None:
+        """Gasi przełączniki, które odpaliły ten typ (wybrane w opcjach + stare z YAML)."""
+        ents = list(self.options.get(conf_entities(typ), []) or [])
+        if typ in LEGACY_HELPERS:
+            ents.append(LEGACY_HELPERS[typ])
+        for ent in dict.fromkeys(ents):
+            domain = ent.split(".", 1)[0]
+            st = self.hass.states.get(ent)
+            if domain not in TURN_OFF_DOMAINS or st is None or st.state != "on":
+                continue
+            _LOGGER.info("Sekurak: wyciszono %s – gaszę %s", typ, ent)
+            await self.hass.services.async_call(
+                domain, "turn_off", {"entity_id": ent}, blocking=False
+            )
 
     @callback
     def async_unload(self) -> None:

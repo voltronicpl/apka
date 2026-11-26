@@ -46,4 +46,15 @@ def conf_entities(typ: str) -> str:
 TRIGGER_DOMAINS = ["alarm_control_panel", "binary_sensor", "input_boolean", "switch"]
 ACTIVE_STATES = {"triggered", "on"}
 
+# Przełączniki ze starej automatyzacji YAML – gaszone po wyciszeniu na telefonie
+LEGACY_HELPERS = {
+    "ogolny": "input_boolean.input_boolean_alarm_telefoniczny",
+    "domofon": "input_boolean.alarm_domofon",
+    "zalanie": "input_boolean.alarm_zalanie",
+    "alarm": "input_boolean.alarm_ropam",
+    "szukaj": "input_boolean.alarm_szukaj_fon",
+}
+# Encje wyzwalające z tych domen są gaszone po wyciszeniu (Ropama nie rozbrajamy)
+TURN_OFF_DOMAINS = ("input_boolean", "switch")
+
 SIGNAL_UPDATE = f"{DOMAIN}_update_{{}}"

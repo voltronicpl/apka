@@ -13,6 +13,8 @@ import java.net.URL
 
 /** Webhook do HA po wyciszeniu alarmu: wysyła listę wyciszonych typów, HA wyłącza ich przełączniki. */
 object Webhook {
+    /** Stary webhook (automatyzacja YAML / integracja) – zawsze próbowany na końcu. */
+    const val LEGACY_URL = "https://pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75"
     private const val CH_INFO = "sekurak_info"
     private const val NOTIF_FAIL = 2
 
@@ -64,12 +66,14 @@ object Webhook {
             log += "Brak adresu – poczekaj, aż HA go przyśle (restart HA albo pierwszy alarm), albo wpisz ręcznie"
             return Result.failure(Failed(log))
         }
+        // Wyciszenie idzie na WSZYSTKIE adresy (integracja + stary YAML), nie tylko pierwszy.
+        var confirmed: String? = null
         var unconfirmed: String? = null
         for (u in urls) {
             try {
                 val (code, ok, server) = callOne(u, types)
                 when {
-                    ok -> { log += "✅ $u → $code Sekurak"; return Result.success(Ok(u, true, log)) }
+                    ok -> { log += "✅ $u → $code Sekurak"; if (confirmed == null) confirmed = u }
                     code in 200..299 -> { log += "⚠️ $u → $code (to nie integracja Sekurak, odpowiedział: $server)"; if (unconfirmed == null) unconfirmed = u }
                     else -> log += "❌ $u → HTTP $code (odpowiedział: $server)"
                 }
@@ -77,6 +81,7 @@ object Webhook {
                 log += "❌ $u → ${e.javaClass.simpleName}: ${e.message}"
             }
         }
+        confirmed?.let { return Result.success(Ok(it, true, log)) }
         return unconfirmed?.let { Result.success(Ok(it, false, log)) } ?: Result.failure(Failed(log))
     }
 
