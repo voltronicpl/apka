@@ -243,7 +243,10 @@ class AlarmService : Service() {
         AlarmActivity.closeAll()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
-        if (syncHa) Webhook.sendWycisz(this, types)
+        if (syncHa) {
+            markDismissed(types)
+            Webhook.sendWycisz(this, types)
+        }
     }
 
     override fun onDestroy() {
@@ -260,6 +263,21 @@ class AlarmService : Service() {
         @Volatile
         var instance: AlarmService? = null
             private set
+
+        /** Po wyciszeniu ignoruj kolejne START tego typu (HA wysyła START 2x co 3 s). */
+        const val DEDUPE_MS = 60_000L
+        private val dismissedAt = java.util.concurrent.ConcurrentHashMap<AlarmType, Long>()
+
+        fun markDismissed(types: List<AlarmType>) {
+            val now = android.os.SystemClock.elapsedRealtime()
+            types.forEach { dismissedAt[it] = now }
+        }
+
+        /** true = ten typ wyciszono przed chwilą, START trzeba zignorować. */
+        fun recentlyDismissed(t: AlarmType): Boolean {
+            val at = dismissedAt[t] ?: return false
+            return android.os.SystemClock.elapsedRealtime() - at < DEDUPE_MS
+        }
 
         val running: Boolean get() = instance != null
 
@@ -281,7 +299,10 @@ class AlarmService : Service() {
             } else {
                 c.getSystemService(NotificationManager::class.java).cancel(AlarmReceiver.NOTIF_FALLBACK)
                 AlarmActivity.closeAll()
-                if (syncHa) Webhook.sendWycisz(c, listOf(AlarmReceiver.fallbackType))
+                if (syncHa) {
+                    markDismissed(listOf(AlarmReceiver.fallbackType))
+                    Webhook.sendWycisz(c, listOf(AlarmReceiver.fallbackType))
+                }
             }
         }
 

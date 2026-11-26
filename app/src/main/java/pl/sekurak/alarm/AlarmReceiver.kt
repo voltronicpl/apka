@@ -34,6 +34,12 @@ class AlarmReceiver : BroadcastReceiver() {
                 val wh2 = Webhook.decode(intent.getStringExtra("webhook2"))
                 Prefs(context).webhookAuto2 = if (wh2.startsWith("http")) wh2 else ""
                 if (intent.action == Signals.CONFIG) return
+                if (AlarmService.recentlyDismissed(type)) {
+                    Log.i(TAG, "START ${type.key} zignorowany – wyciszony przed chwilą")
+                    return
+                }
+                // Ten typ już dzwoni – nie odpalaj go od nowa
+                if (AlarmService.instance?.activeTypes()?.contains(type) == true) return
                 try {
                     AlarmService.start(context, type)
                 } catch (e: Exception) {
