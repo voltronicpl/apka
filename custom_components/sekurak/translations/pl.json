@@ -17,7 +17,7 @@
     "step": {
       "init": {
         "title": "Sekurak",
-        "description": "Czujniki:\n{czujniki}",
+        "description": "Czujniki i czuwanie najwygodniej ustawisz na karcie Sekurak w lewym menu.\n\nCzujniki:\n{czujniki}",
         "menu_options": {
           "dodaj": "Dodaj czujnik",
           "edytuj": "Edytuj / usuń czujnik",

@@ -15,6 +15,7 @@ from homeassistant.components import webhook
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.network import NoURLAvailableError, get_url
@@ -47,6 +48,15 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 PLATFORMS = [Platform.SWITCH, Platform.BUTTON]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Karta „Sekurak” w lewym menu (czujniki, czuwanie)."""
+    from .panel import async_setup_panel
+
+    await async_setup_panel(hass)
+    return True
 
 
 def build_webhook_url(hass: HomeAssistant, external: str, webhook_id: str) -> str:

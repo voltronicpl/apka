@@ -17,7 +17,7 @@
     "step": {
       "init": {
         "title": "Sekurak",
-        "description": "Sensors:\n{czujniki}",
+        "description": "Tip: sensors and arming are easiest to set on the Sekurak card in the left sidebar.\n\nSensors:\n{czujniki}",
         "menu_options": {
           "dodaj": "Add sensor",
           "edytuj": "Edit / remove sensor",
