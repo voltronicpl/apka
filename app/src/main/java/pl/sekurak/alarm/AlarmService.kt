@@ -101,6 +101,7 @@ class AlarmService : Service() {
     /** Usuwa jeden typ (wyłączony w HA). Gdy nic nie zostanie – kończy alarm. */
     fun removeType(t: AlarmType) {
         active -= t
+        forget(listOf(t))
         if (active.isEmpty()) {
             stopAlarm(syncHa = false)
         } else {
@@ -243,9 +244,12 @@ class AlarmService : Service() {
         AlarmActivity.closeAll()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
+        val sync = types.filter { it in fromHa }
+        forget(types)
         if (syncHa) {
             markDismissed(types)
-            Webhook.sendWycisz(this, types)
+            // alarm z testu w apce – HA o nim nie wie, nic nie wysyłamy
+            if (sync.isNotEmpty()) Webhook.sendWycisz(this, sync)
         }
     }
 
@@ -281,7 +285,24 @@ class AlarmService : Service() {
 
         val running: Boolean get() = instance != null
 
-        fun start(c: Context, type: AlarmType) {
+        /** Nazwy czujników (z HA), które odpaliły dany typ. */
+        val sources = java.util.concurrent.ConcurrentHashMap<AlarmType, LinkedHashSet<String>>()
+
+        /** Typy odpalone przez HA – tylko one są synchronizowane po wyciszeniu (test z apki nie). */
+        val fromHa: MutableSet<AlarmType> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+        fun addSource(type: AlarmType, source: String?, ha: Boolean) {
+            if (ha) fromHa += type
+            val s = source?.trim().orEmpty()
+            if (s.isNotEmpty()) sources.getOrPut(type) { LinkedHashSet() }.add(s)
+        }
+
+        fun forget(types: Collection<AlarmType>) {
+            types.forEach { sources.remove(it); fromHa.remove(it) }
+        }
+
+        fun start(c: Context, type: AlarmType, source: String? = null, ha: Boolean = false) {
+            addSource(type, source, ha)
             ContextCompat.startForegroundService(
                 c, Intent(c, AlarmService::class.java).putExtra(EXTRA_TYPE, type.key)
             )
@@ -299,9 +320,12 @@ class AlarmService : Service() {
             } else {
                 c.getSystemService(NotificationManager::class.java).cancel(AlarmReceiver.NOTIF_FALLBACK)
                 AlarmActivity.closeAll()
+                val ft = AlarmReceiver.fallbackType
+                val sync = ft in fromHa
+                forget(listOf(ft))
                 if (syncHa) {
-                    markDismissed(listOf(AlarmReceiver.fallbackType))
-                    Webhook.sendWycisz(c, listOf(AlarmReceiver.fallbackType))
+                    markDismissed(listOf(ft))
+                    if (sync) Webhook.sendWycisz(c, listOf(ft))
                 }
             }
         }

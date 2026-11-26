@@ -16,15 +16,48 @@
   "options": {
     "step": {
       "init": {
-        "title": "Sekurak – co odpala alarmy",
-        "description": "Wybierz encje, które włączają dany alarm (alarm_control_panel przy stanie triggered, reszta przy on). Można wybrać kilka.\n\nWebhook wyciszenia jest jednorazowy: każdy alarm dostaje nowe, losowe ID, które przestaje działać po wyciszeniu (najdłużej 15 min). Wzór adresu: {webhook_url}",
+        "title": "Sekurak",
+        "description": "Czujniki:\n{czujniki}",
+        "menu_options": {
+          "dodaj": "Dodaj czujnik",
+          "edytuj": "Edytuj / usuń czujnik",
+          "ustawienia": "Ustawienia (czuwanie, czas na wyjście, adres, sekret)"
+        }
+      },
+      "dodaj": {
+        "title": "Dodaj czujnik",
+        "description": "Wybierz encję, wpisz nazwę (pokaże się na telefonie), wybierz, co ma odpalić. Odwrócony sygnał = alarm przy off/zamknięciu zamiast przy on/otwarciu.",
         "data": {
-          "encje_alarm": "Alarm (np. Ropam)",
-          "encje_zalanie": "Zalanie",
-          "encje_domofon": "Domofon",
-          "encje_ogolny": "Ogólny",
-          "secret": "Sekret (taki sam jak w apce, puste = brak)",
-          "external_url": "Adres zewnętrzny HA, jak w Companion App (puste = z ustawień HA / Nabu Casa)"
+          "entity_id": "Encja",
+          "name": "Nazwa na telefonie",
+          "typ": "Co odpala",
+          "invert": "Odwrócony sygnał"
+        }
+      },
+      "edytuj": {
+        "title": "Edytuj czujnik",
+        "data": {
+          "czujnik": "Czujnik"
+        }
+      },
+      "edytuj_czujnik": {
+        "title": "Edytuj czujnik",
+        "data": {
+          "entity_id": "Encja",
+          "name": "Nazwa na telefonie",
+          "typ": "Co odpala",
+          "invert": "Odwrócony sygnał",
+          "usun": "Usuń ten czujnik"
+        }
+      },
+      "ustawienia": {
+        "title": "Ustawienia",
+        "description": "Czuwanie alarmu: czujniki typu Alarm działają tylko, gdy ta encja jest uzbrojona (armed_* albo on), po czasie na wyjście. Puste = działają zawsze. Zalanie i pozostałe typy działają zawsze.\n\nWebhook wyciszenia jest jednorazowy (losowe ID na każdy alarm, max 15 min). Wzór: {webhook_url}",
+        "data": {
+          "czuwanie": "Czuwanie alarmu (encja uzbrojenia)",
+          "czas_wyjscia": "Czas na wyjście po uzbrojeniu",
+          "external_url": "Adres zewnętrzny HA, jak w Companion App",
+          "secret": "Sekret (taki sam jak w apce, puste = brak)"
         }
       }
     }

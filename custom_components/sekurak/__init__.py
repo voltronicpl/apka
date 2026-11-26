@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+from uuid import uuid4
 from typing import Any
 from urllib.parse import quote
 
@@ -21,7 +22,11 @@ from homeassistant.helpers.network import NoURLAvailableError, get_url
 from .const import (
     ACTION_START,
     ACTION_STOP,
-    ACTIVE_STATES,
+    CONF_ARM_ENTITY,
+    CONF_EXIT_DELAY,
+    CONF_SENSORS,
+    DEFAULT_EXIT_DELAY,
+    MANUAL_SOURCE,
     CONF_EXTERNAL,
     CONF_NOTIFY,
     CONF_SECRET,
@@ -33,6 +38,8 @@ from .const import (
     PACKAGE,
     SIGNAL_UPDATE,
     TRIGGER_TYPES,
+    is_armed,
+    sensor_active,
     TYPES,
     conf_entities,
     fix_external,
@@ -65,6 +72,13 @@ class Sekurak:
         # jednorazowy webhook: losowe ID na czas alarmu, kasowane po wyciszeniu / max 15 min
         self.one_time_id: str | None = None
         self._expire_unsub = None
+        # czuwanie alarmu: do kiedy trwa czas na wyjście (monotonic), zaplanowane sprawdzenie
+        self._in_exit: bool = False
+        self._exit_unsub = None
+
+    @property
+    def sensors(self) -> list[dict]:
+        return list(self.options.get(CONF_SENSORS, []) or [])
 
     @property
     def options(self) -> dict[str, Any]:
@@ -111,9 +125,14 @@ class Sekurak:
         return webhook.async_generate_url(self.hass, wid, allow_external=False)
 
     # ---------- wysyłka do telefonu ----------
-    async def _send(self, action: str, typ: str, wid: str | None = None) -> None:
+    async def _send(
+        self, action: str, typ: str, wid: str | None = None, source: str | None = None
+    ) -> None:
         notify = self.options[CONF_NOTIFY].removeprefix("notify.")
         parts = [f"typ:{typ}"]
+        if source:
+            # nazwa czujnika wpisana w Konfiguruj – apka pokazuje ją na ekranie alarmu
+            parts.append(f"czujnik:{quote(source, safe='')}:urlencoded")
         if wid:
             # jednorazowy adres wyciszenia jedzie razem z alarmem
             url = self.url_for(wid)
@@ -143,21 +162,25 @@ class Sekurak:
             blocking=False,
         )
 
-    async def async_start(self, typ: str) -> None:
+    async def async_start(self, typ: str, source: str | None = None) -> None:
         """Włącz alarm typu. START idzie 2x co 3 s (jak w starej automatyzacji),
-        powtórka leci w tle, żeby nie blokować przycisku/usługi."""
+        powtórka leci w tle, żeby nie blokować przycisku/usługi.
+        Gdy typ już dzwoni, a odpalił kolejny czujnik – jeden START z jego nazwą
+        (apka dopisze nazwę, nie zacznie dzwonić od nowa)."""
         if self.active.get(typ):
+            if source and self.one_time_id:
+                await self._send(ACTION_START, typ, self.one_time_id, source)
             return
         self._set(typ, True)
-        await self._send(ACTION_START, typ, self._ensure_one_time())
+        await self._send(ACTION_START, typ, self._ensure_one_time(), source)
         self.hass.async_create_background_task(
-            self._repeat_start(typ), f"sekurak_repeat_{typ}"
+            self._repeat_start(typ, source), f"sekurak_repeat_{typ}"
         )
 
-    async def _repeat_start(self, typ: str) -> None:
+    async def _repeat_start(self, typ: str, source: str | None) -> None:
         await asyncio.sleep(3)
         if self.active.get(typ) and self.one_time_id:
-            await self._send(ACTION_START, typ, self.one_time_id)
+            await self._send(ACTION_START, typ, self.one_time_id, source)
 
     async def async_stop(self, typ: str, notify_phone: bool = True) -> None:
         """Wyłącz alarm typu (z HA albo po wyciszeniu na telefonie)."""
@@ -173,30 +196,104 @@ class Sekurak:
         async_dispatcher_send(self.hass, SIGNAL_UPDATE.format(self.entry.entry_id))
 
     # ---------- encje wyzwalające ----------
+    # ---------- czuwanie alarmu ----------
+    @property
+    def arm_entity(self) -> str | None:
+        return self.options.get(CONF_ARM_ENTITY) or None
+
+    @property
+    def exit_delay(self) -> int:
+        try:
+            return int(self.options.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY))
+        except (TypeError, ValueError):
+            return DEFAULT_EXIT_DELAY
+
+    def alarm_allowed(self) -> bool:
+        """Czujniki typu Alarm działają tylko przy uzbrojonym czuwaniu, po czasie na wyjście.
+        Brak encji czuwania = działają zawsze."""
+        ent = self.arm_entity
+        if not ent:
+            return True
+        st = self.hass.states.get(ent)
+        if not is_armed(st.state if st else None):
+            return False
+        return not self._in_exit
+
+    @callback
+    def _cancel_exit(self) -> None:
+        self._in_exit = False
+        if self._exit_unsub:
+            self._exit_unsub()
+            self._exit_unsub = None
+
+    @callback
+    def _armed(self) -> None:
+        """Uzbrojono: odlicz czas na wyjście, potem sprawdź wszystkie czujniki Alarmu."""
+        self._cancel_exit()
+        delay = max(0, self.exit_delay)
+        self._in_exit = delay > 0
+        _LOGGER.info("Sekurak: uzbrojono, czas na wyjście %s s", delay)
+        self._exit_unsub = async_call_later(self.hass, delay, self._check_after_exit)
+
+    @callback
+    def _check_after_exit(self, _now) -> None:
+        self._exit_unsub = None
+        self._in_exit = False
+        for s in self.sensors:
+            if s.get("typ") != "alarm":
+                continue
+            st = self.hass.states.get(s["entity_id"])
+            if sensor_active(st.state if st else None, bool(s.get("invert"))):
+                _LOGGER.info("Sekurak: po uzbrojeniu %s w złym stanie -> alarm", s["entity_id"])
+                self.hass.async_create_task(self.async_start("alarm", s.get("name")))
+
+    # ---------- czujniki ----------
     @callback
     def async_listen(self) -> None:
-        by_entity: dict[str, list[str]] = {}
-        for typ in TRIGGER_TYPES:
-            for ent in self.options.get(conf_entities(typ), []) or []:
-                by_entity.setdefault(ent, []).append(typ)
-        if not by_entity:
-            return
+        by_entity: dict[str, list[dict]] = {}
+        for s in self.sensors:
+            if s.get("entity_id") and s.get("typ") in TYPES:
+                by_entity.setdefault(s["entity_id"], []).append(s)
 
         @callback
         def _changed(event: Event) -> None:
             new = event.data.get("new_state")
             old = event.data.get("old_state")
-            if new is None or new.state not in ACTIVE_STATES:
-                return
-            if old is not None and old.state in ACTIVE_STATES:
-                return
-            for typ in by_entity.get(event.data["entity_id"], []):
-                _LOGGER.info("Sekurak: %s -> %s", event.data["entity_id"], typ)
-                self.hass.async_create_task(self.async_start(typ))
+            for s in by_entity.get(event.data["entity_id"], []):
+                inv = bool(s.get("invert"))
+                if not sensor_active(new.state if new else None, inv):
+                    continue
+                if old is not None and sensor_active(old.state, inv):
+                    continue  # tylko zmiana na stan alarmowy
+                typ = s["typ"]
+                if typ == "alarm" and not self.alarm_allowed():
+                    continue
+                _LOGGER.info("Sekurak: %s (%s) -> %s", s.get("name"), s["entity_id"], typ)
+                self.hass.async_create_task(self.async_start(typ, s.get("name")))
 
-        self._unsubs.append(
-            async_track_state_change_event(self.hass, list(by_entity), _changed)
-        )
+        if by_entity:
+            self._unsubs.append(
+                async_track_state_change_event(self.hass, list(by_entity), _changed)
+            )
+
+        arm = self.arm_entity
+        if arm:
+            @callback
+            def _arm_changed(event: Event) -> None:
+                new = event.data.get("new_state")
+                old = event.data.get("old_state")
+                now_armed = is_armed(new.state if new else None)
+                was_armed = is_armed(old.state if old else None)
+                if now_armed and not was_armed:
+                    self._armed()
+                elif not now_armed:
+                    self._cancel_exit()
+
+            self._unsubs.append(async_track_state_change_event(self.hass, [arm], _arm_changed))
+            st = self.hass.states.get(arm)
+            if is_armed(st.state if st else None):
+                # już uzbrojone przy starcie integracji – bez czasu na wyjście
+                self._in_exit = False
 
     # ---------- webhook z telefonu (wyciszenie) ----------
     async def handle_webhook(
@@ -218,8 +315,12 @@ class Sekurak:
         return web.json_response({"sekurak": "ok", "wyciszone": typy})
 
     async def _turn_off_sources(self, typ: str) -> None:
-        """Gasi przełączniki, które odpaliły ten typ (wybrane w opcjach + stare z YAML)."""
-        ents = list(self.options.get(conf_entities(typ), []) or [])
+        """Gasi przełączniki (input_boolean/switch), które odpaliły ten typ, + stare z YAML.
+        Odwróconych nie ruszamy (dla nich "spoczynek" to on)."""
+        ents = [
+            s["entity_id"] for s in self.sensors
+            if s.get("typ") == typ and not s.get("invert") and s.get("entity_id")
+        ]
         if typ in LEGACY_HELPERS:
             ents.append(LEGACY_HELPERS[typ])
         for ent in dict.fromkeys(ents):
@@ -235,12 +336,14 @@ class Sekurak:
     @callback
     def async_unload(self) -> None:
         self._drop_one_time()
+        self._cancel_exit()
         for u in self._unsubs:
             u()
         self._unsubs.clear()
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    _migrate_sensors(hass, entry)
     sek = Sekurak(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = sek
 
@@ -249,6 +352,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
     return True
+
+
+def _migrate_sensors(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Stare pola "encje_<typ>" -> lista czujników (nazwa = nazwa encji z HA)."""
+    opts = dict(entry.options)
+    if CONF_SENSORS in opts:
+        return
+    sensors: list[dict] = []
+    for typ in TRIGGER_TYPES:
+        for ent in opts.get(conf_entities(typ), []) or []:
+            st = hass.states.get(ent)
+            name = (st.name if st else None) or ent
+            sensors.append(
+                {"id": uuid4().hex, "entity_id": ent, "name": name, "typ": typ, "invert": False}
+            )
+    if not sensors and not any(k.startswith("encje_") for k in opts):
+        return
+    for typ in TRIGGER_TYPES:
+        opts.pop(conf_entities(typ), None)
+    opts[CONF_SENSORS] = sensors
+    _LOGGER.info("Sekurak: przeniesiono %s czujników do nowej listy", len(sensors))
+    hass.config_entries.async_update_entry(entry, options=opts)
 
 
 async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> None:

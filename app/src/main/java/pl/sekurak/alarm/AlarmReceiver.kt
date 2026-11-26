@@ -38,10 +38,15 @@ class AlarmReceiver : BroadcastReceiver() {
                     Log.i(TAG, "START ${type.key} zignorowany – wyciszony przed chwilą")
                     return
                 }
-                // Ten typ już dzwoni – nie odpalaj go od nowa
-                if (AlarmService.instance?.activeTypes()?.contains(type) == true) return
+                val sensor = Webhook.decodeText(intent.getStringExtra("czujnik"))
+                // Ten typ już dzwoni – nie odpalaj od nowa, tylko dopisz czujnik na ekranie
+                if (AlarmService.instance?.activeTypes()?.contains(type) == true) {
+                    AlarmService.addSource(type, sensor, ha = true)
+                    AlarmActivity.refreshAll()
+                    return
+                }
                 try {
-                    AlarmService.start(context, type)
+                    AlarmService.start(context, type, sensor, ha = true)
                 } catch (e: Exception) {
                     Log.w(TAG, "Nie można uruchomić serwisu z tła, fallback", e)
                     postFallback(context, type)
@@ -54,6 +59,7 @@ class AlarmReceiver : BroadcastReceiver() {
 
     private fun postFallback(c: Context, type: AlarmType) {
         fallbackType = type
+        AlarmService.addSource(type, null, ha = true)
         val nm = c.getSystemService(NotificationManager::class.java)
         val ch = NotificationChannel(CH_FALLBACK, "Alarm (awaryjny)", NotificationManager.IMPORTANCE_HIGH).apply {
             setSound(

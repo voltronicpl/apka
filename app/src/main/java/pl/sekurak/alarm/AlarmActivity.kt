@@ -95,6 +95,12 @@ class AlarmActivity : AppCompatActivity() {
             setShadowLayer(28f, 0f, 0f, ColorUtils.setAlphaComponent(t.color, 0xAA))
         }
         findViewById<TextView>(R.id.tvSubtitle).text = t.subtitle
+        // Nazwy czujników z HA, które odpaliły ten alarm (każdy w nowej linii)
+        findViewById<TextView>(R.id.tvSensor).apply {
+            val names = AlarmService.sources[t]?.toList().orEmpty()
+            text = names.joinToString("\n")
+            visibility = if (names.isEmpty()) View.GONE else View.VISIBLE
+        }
         findViewById<ImageView>(R.id.bell).imageTintList = ColorStateList.valueOf(t.color)
         findViewById<View>(R.id.ring).background = oval(ColorUtils.setAlphaComponent(t.color, 0x66), 0, 0)
         findViewById<View>(R.id.ring2).background = oval(ColorUtils.setAlphaComponent(t.color, 0x66), 0, 0)

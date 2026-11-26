@@ -38,6 +38,12 @@ object Webhook {
         return if (s.contains("%3A", ignoreCase = true)) java.net.URLDecoder.decode(s, "UTF-8") else s
     }
 
+    /** Tekst z intent_extras (np. nazwa czujnika) – dekoduje %XX, jeśli przyszło zakodowane. */
+    fun decodeText(v: String?): String {
+        val s = v?.trim().orEmpty()
+        return if (s.contains('%')) runCatching { java.net.URLDecoder.decode(s, "UTF-8") }.getOrDefault(s) else s
+    }
+
     /** Jedno wywołanie jednego adresu. Zwraca kod HTTP i czy odpowiedziała integracja Sekurak. */
     private fun callOne(url: String, types: List<AlarmType>): Triple<Int, Boolean, String> {
         val c = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -69,7 +75,7 @@ object Webhook {
     fun call(urls: List<String>, types: List<AlarmType>): Result<Ok> {
         val log = mutableListOf<String>()
         if (urls.isEmpty()) {
-            log += "Brak adresu – adres wyciszenia jest jednorazowy i przychodzi z HA razem z alarmem"
+            log += "HA nie przysłał adresu wyciszenia – zaktualizuj Sekurak w HACS i zrestartuj HA"
             return Result.failure(Failed(log))
         }
         // Wyciszenie idzie na WSZYSTKIE adresy (integracja + stary YAML), nie tylko pierwszy.

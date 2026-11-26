@@ -51,7 +51,31 @@ def conf_entities(typ: str) -> str:
 
 # Domeny encji, które mogą wyzwalać alarm, i ich "aktywne" stany
 TRIGGER_DOMAINS = ["alarm_control_panel", "binary_sensor", "input_boolean", "switch"]
-ACTIVE_STATES = {"triggered", "on"}
+ACTIVE_STATES = {"triggered", "on", "open"}
+# Stany "spoczynku" – przy odwróconym sygnale to one odpalają alarm
+REST_STATES = {"off", "closed", "disarmed"}
+
+# ---- lista czujników (v1.0.16) ----
+CONF_SENSORS = "czujniki"  # lista: {id, entity_id, name, typ, invert}
+CONF_ARM_ENTITY = "czuwanie"  # encja: czy alarm jest uzbrojony
+CONF_EXIT_DELAY = "czas_wyjscia"  # sekundy na wyjście po uzbrojeniu
+DEFAULT_EXIT_DELAY = 30
+ARM_DOMAINS = ["alarm_control_panel", "input_boolean", "binary_sensor", "switch"]
+MANUAL_SOURCE = "Ręcznie z HA"
+
+
+def sensor_active(state: str | None, invert: bool) -> bool:
+    """Czy czujnik jest w stanie alarmowym (z uwzględnieniem odwrócenia)."""
+    if state is None:
+        return False
+    return state in REST_STATES if invert else state in ACTIVE_STATES
+
+
+def is_armed(state: str | None) -> bool:
+    """Uzbrojony = armed_* (Ropam / alarm_control_panel), triggered albo on."""
+    if not state:
+        return False
+    return state.startswith("armed_") or state in ("on", "triggered", "pending")
 
 # Przełączniki ze starej automatyzacji YAML – gaszone po wyciszeniu na telefonie
 LEGACY_HELPERS = {

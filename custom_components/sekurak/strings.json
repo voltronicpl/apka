@@ -16,15 +16,48 @@
   "options": {
     "step": {
       "init": {
-        "title": "Sekurak – alarm triggers",
-        "description": "Pick entities that start each alarm (alarm_control_panel on triggered, others on on). Multiple allowed.\n\nThe silence webhook is one-time: each alarm gets a new random ID that stops working after silencing (max 15 min). Address pattern: {webhook_url}",
+        "title": "Sekurak",
+        "description": "Sensors:\n{czujniki}",
+        "menu_options": {
+          "dodaj": "Add sensor",
+          "edytuj": "Edit / remove sensor",
+          "ustawienia": "Settings (arming, exit delay, address, secret)"
+        }
+      },
+      "dodaj": {
+        "title": "Add sensor",
+        "description": "Pick an entity, type a name (shown on the phone), choose what it triggers. Inverted = alarm on off/closed instead of on/open.",
         "data": {
-          "encje_alarm": "Alarm (e.g. Ropam)",
-          "encje_zalanie": "Flood",
-          "encje_domofon": "Intercom",
-          "encje_ogolny": "General",
-          "secret": "Secret (same as in the app, empty = none)",
-          "external_url": "HA external address, as in the Companion App (empty = from HA settings / Nabu Casa)"
+          "entity_id": "Entity",
+          "name": "Name on the phone",
+          "typ": "Triggers",
+          "invert": "Inverted signal"
+        }
+      },
+      "edytuj": {
+        "title": "Edit sensor",
+        "data": {
+          "czujnik": "Sensor"
+        }
+      },
+      "edytuj_czujnik": {
+        "title": "Edit sensor",
+        "data": {
+          "entity_id": "Entity",
+          "name": "Name on the phone",
+          "typ": "Triggers",
+          "invert": "Inverted signal",
+          "usun": "Remove this sensor"
+        }
+      },
+      "ustawienia": {
+        "title": "Settings",
+        "description": "Arming: Alarm-type sensors only work while this entity is armed (armed_* or on), after the exit delay. Empty = always. Flood and other types always work.\n\nThe silence webhook is one-time (random ID per alarm, max 15 min). Pattern: {webhook_url}",
+        "data": {
+          "czuwanie": "Arming entity",
+          "czas_wyjscia": "Exit delay after arming",
+          "external_url": "HA external address, as in the Companion App",
+          "secret": "Secret (same as in the app, empty = none)"
         }
       }
     }

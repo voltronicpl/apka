@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Sekurak
-from .const import DOMAIN, ICONS
+from .const import DOMAIN, ICONS, MANUAL_SOURCE
 from .switch import device_info
 
 
@@ -29,4 +29,4 @@ class SzukajButton(ButtonEntity):
         self._attr_device_info = device_info(sek)
 
     async def async_press(self) -> None:
-        await self._sek.async_start("szukaj")
+        await self._sek.async_start("szukaj", MANUAL_SOURCE)

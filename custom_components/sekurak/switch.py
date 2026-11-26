@@ -12,7 +12,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import Sekurak
-from .const import DOMAIN, ICONS, SIGNAL_UPDATE, TYPES
+from .const import DOMAIN, ICONS, MANUAL_SOURCE, SIGNAL_UPDATE, TYPES
 
 
 async def async_setup_entry(
@@ -52,7 +52,7 @@ class SekurakSwitch(SwitchEntity):
         return {"typ": self._typ}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self._sek.async_start(self._typ)
+        await self._sek.async_start(self._typ, MANUAL_SOURCE)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         await self._sek.async_stop(self._typ)
