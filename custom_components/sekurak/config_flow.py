@@ -21,7 +21,6 @@ from .const import (
     DEFAULT_EXTERNAL,
     DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
-    OLD_DEFAULT_EXTERNAL,
     TRIGGER_DOMAINS,
     TRIGGER_TYPES,
     conf_entities,
@@ -93,7 +92,7 @@ class SekurakOptionsFlow(OptionsFlow):
             vol.Optional(CONF_SECRET, default=opts.get(CONF_SECRET, ""))
         ] = selector.TextSelector()
         schema[
-            vol.Optional(CONF_EXTERNAL, default="" if (opts.get(CONF_EXTERNAL) or "").rstrip("/") == OLD_DEFAULT_EXTERNAL else opts.get(CONF_EXTERNAL, DEFAULT_EXTERNAL))
+            vol.Optional(CONF_EXTERNAL, default=opts.get(CONF_EXTERNAL, DEFAULT_EXTERNAL))
         ] = selector.TextSelector()
         schema[
             vol.Optional(
@@ -105,8 +104,6 @@ class SekurakOptionsFlow(OptionsFlow):
         from . import build_webhook_url
 
         external = (opts.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip()
-        if external.rstrip("/") == OLD_DEFAULT_EXTERNAL:
-            external = ""
         wid = self.config_entry.data[CONF_WEBHOOK_ID]
         url = build_webhook_url(self.hass, external, wid)
         local = webhook.async_generate_url(self.hass, wid, allow_external=False)

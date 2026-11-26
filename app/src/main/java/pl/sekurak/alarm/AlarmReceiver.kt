@@ -31,6 +31,8 @@ class AlarmReceiver : BroadcastReceiver() {
                 // Integracja HA podaje adres webhooka – zapamiętaj, nic nie trzeba wpisywać
                 val wh = Webhook.decode(intent.getStringExtra("webhook"))
                 if (wh.startsWith("http")) Prefs(context).webhookAuto = wh
+                val wh2 = Webhook.decode(intent.getStringExtra("webhook2"))
+                Prefs(context).webhookAuto2 = if (wh2.startsWith("http")) wh2 else ""
                 if (intent.action == Signals.CONFIG) return
                 try {
                     AlarmService.start(context, type)

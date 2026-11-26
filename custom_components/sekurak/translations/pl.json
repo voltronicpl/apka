@@ -24,7 +24,7 @@
           "encje_domofon": "Domofon",
           "encje_ogolny": "Ogólny",
           "secret": "Sekret (taki sam jak w apce, puste = brak)",
-          "external_url": "Adres zewnętrzny HA (puste = weź z ustawień HA / Nabu Casa)",
+          "external_url": "Adres zewnętrzny HA, jak w Companion App (puste = z ustawień HA / Nabu Casa)",
           "extra_webhook_id": "Dodatkowe ID webhooka (domyślnie stare z automatyzacji YAML)"
         }
       }

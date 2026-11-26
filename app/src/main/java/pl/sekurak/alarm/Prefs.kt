@@ -18,9 +18,14 @@ class Prefs(context: Context) {
         get() = p.getString("webhook_auto", "")!!.trim()
         set(v) = p.edit().putString("webhook_auto", v.trim()).apply()
 
-    /** Adresy do spróbowania: najpierw ten od HA, potem wpisany ręcznie. */
+    /** Zapasowy adres od integracji HA (lokalny, działa w domu). */
+    var webhookAuto2: String
+        get() = p.getString("webhook_auto2", "")!!.trim()
+        set(v) = p.edit().putString("webhook_auto2", v.trim()).apply()
+
+    /** Adresy do spróbowania: najpierw te od HA (zewnętrzny, lokalny), potem wpisany ręcznie. */
     val webhookUrls: List<String>
-        get() = listOf(webhookAuto, webhookUrl).filter { it.startsWith("http") }.distinct()
+        get() = listOf(webhookAuto, webhookAuto2, webhookUrl).filter { it.startsWith("http") }.distinct()
 
     /** Opcjonalny sekret – jeśli ustawiony, sygnał START z HA musi go zawierać. */
     var secret: String

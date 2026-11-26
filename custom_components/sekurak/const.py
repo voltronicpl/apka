@@ -8,9 +8,8 @@ CONF_SECRET = "secret"
 CONF_EXTERNAL = "external_url"
 CONF_EXTRA_WEBHOOK = "extra_webhook_id"
 
-# Adres zewnętrzny: puste = weź z HA (zewnętrzny URL albo Nabu Casa).
-DEFAULT_EXTERNAL = ""
-OLD_DEFAULT_EXTERNAL = "https://pusiloft.ovh"  # z v1.0.9, dawał 404
+# Adres zewnętrzny HA (tak jak w Companion App). Puste = weź z HA (zewnętrzny URL / Nabu Casa).
+DEFAULT_EXTERNAL = "https://pusiloft.ovh"
 # Stary webhook z automatyzacji YAML – dalej obsługiwany, gdy wolny.
 DEFAULT_EXTRA_WEBHOOK = "sekurak_wycisz_pudaul75"
 

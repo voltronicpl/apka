@@ -31,7 +31,7 @@ object Webhook {
     }
 
     /** Jedno wywołanie jednego adresu. Zwraca kod HTTP i czy odpowiedziała integracja Sekurak. */
-    private fun callOne(url: String, types: List<AlarmType>): Pair<Int, Boolean> {
+    private fun callOne(url: String, types: List<AlarmType>): Triple<Int, Boolean, String> {
         val c = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 6000
@@ -45,7 +45,9 @@ object Webhook {
             val resp = if (code in 200..299)
                 runCatching { c.inputStream.bufferedReader().use { it.readText() } }.getOrDefault("")
             else ""
-            return code to resp.contains("sekurak")
+            // kto odpowiedział – przy 404 widać, czy to proxy (nginx, Cloudflare…), a nie HA
+            val server = c.getHeaderField("Server")?.takeIf { it.isNotBlank() } ?: "?"
+            return Triple(code, resp.contains("sekurak"), server)
         } finally {
             c.disconnect()
         }
@@ -65,11 +67,11 @@ object Webhook {
         var unconfirmed: String? = null
         for (u in urls) {
             try {
-                val (code, ok) = callOne(u, types)
+                val (code, ok, server) = callOne(u, types)
                 when {
                     ok -> { log += "✅ $u → $code Sekurak"; return Result.success(Ok(u, true, log)) }
-                    code in 200..299 -> { log += "⚠️ $u → $code (to nie integracja Sekurak)"; if (unconfirmed == null) unconfirmed = u }
-                    else -> log += "❌ $u → HTTP $code"
+                    code in 200..299 -> { log += "⚠️ $u → $code (to nie integracja Sekurak, odpowiedział: $server)"; if (unconfirmed == null) unconfirmed = u }
+                    else -> log += "❌ $u → HTTP $code (odpowiedział: $server)"
                 }
             } catch (e: Exception) {
                 log += "❌ $u → ${e.javaClass.simpleName}: ${e.message}"

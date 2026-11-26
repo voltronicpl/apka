@@ -31,7 +31,6 @@ from .const import (
     DEFAULT_EXTERNAL,
     DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
-    OLD_DEFAULT_EXTERNAL,
     PACKAGE,
     SIGNAL_UPDATE,
     TRIGGER_TYPES,
@@ -80,13 +79,17 @@ class Sekurak:
 
     @property
     def external_base(self) -> str:
-        ext = (self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
-        # stary domyślny z v1.0.9 nie prowadzi do HA (404) – ignoruj, weź adres z HA
-        return "" if ext == OLD_DEFAULT_EXTERNAL else ext
+        return (self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL) or "").strip().rstrip("/")
 
     @property
     def webhook_url(self) -> str:
         return build_webhook_url(self.hass, self.external_base, self.entry.data[CONF_WEBHOOK_ID])
+
+    @property
+    def webhook_url_local(self) -> str:
+        return webhook.async_generate_url(
+            self.hass, self.entry.data[CONF_WEBHOOK_ID], allow_external=False
+        )
 
     # ---------- wysyłka do telefonu ----------
     async def _send(self, action: str, typ: str | None = None) -> None:
@@ -96,6 +99,13 @@ class Sekurak:
             parts.append(f"typ:{typ}")
         # adres webhooka jedzie do telefonu z każdym sygnałem – apka sama go zapamiętuje
         parts.append(f"webhook:{quote(self.webhook_url, safe='')}:urlencoded")
+        # zapas: adres lokalny (działa w domu, gdy zewnętrzny nie przejdzie)
+        try:
+            local = self.webhook_url_local
+            if local != self.webhook_url:
+                parts.append(f"webhook2:{quote(local, safe='')}:urlencoded")
+        except Exception:  # noqa: BLE001 – brak adresu lokalnego
+            pass
         secret = (self.options.get(CONF_SECRET) or "").strip()
         if secret:
             parts.append(f"secret:{secret}")

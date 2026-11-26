@@ -24,7 +24,7 @@
           "encje_domofon": "Intercom",
           "encje_ogolny": "General",
           "secret": "Secret (same as in the app, empty = none)",
-          "external_url": "HA external address (empty = from HA settings / Nabu Casa)",
+          "external_url": "HA external address, as in the Companion App (empty = from HA settings / Nabu Casa)",
           "extra_webhook_id": "Extra webhook ID (defaults to the old YAML one)"
         }
       }
