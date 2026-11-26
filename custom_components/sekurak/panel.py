@@ -13,6 +13,9 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
+    ACTION_DOMAINS,
+    CONF_ALARM_ACTIONS,
+    SENSOR_ACTIONS,
     ARM_DOMAINS,
     CONF_ARM_ENTITY,
     CONF_EXIT_DELAY,
@@ -28,7 +31,7 @@ from .const import (
 PANEL_URL = "sekurak"
 STATIC_URL = "/sekurak_static"
 PANEL_JS = "sekurak-panel.js"
-PANEL_VERSION = "1.0.17"
+PANEL_VERSION = "1.0.18"
 
 
 async def async_setup_panel(hass: HomeAssistant) -> None:
@@ -97,6 +100,7 @@ def _entry_info(hass: HomeAssistant, entry) -> dict[str, Any]:
         "czujniki": sensors,
         "czuwanie": opts.get(CONF_ARM_ENTITY) or "",
         "czas_wyjscia": int(opts.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY)),
+        "akcje_alarmu": list(opts.get(CONF_ALARM_ACTIONS) or []),
         "status": _arm_status(hass, entry),
         "aktywne": [t for t, v in (sek.active.items() if sek else []) if v],
     }
@@ -114,8 +118,13 @@ def ws_get(hass: HomeAssistant, connection, msg) -> None:
             "typy": TYPES,
             "domeny": TRIGGER_DOMAINS,
             "domeny_czuwania": ARM_DOMAINS,
+            "domeny_akcji": ACTION_DOMAINS,
         },
     )
+
+
+def _clean(ents: list[str]) -> list[str]:
+    return [e.strip() for e in dict.fromkeys(ents) if isinstance(e, str) and "." in e.strip()]
 
 
 def _update(hass: HomeAssistant, entry, **changes: Any) -> None:
@@ -134,6 +143,7 @@ def _update(hass: HomeAssistant, entry, **changes: Any) -> None:
         vol.Optional("name", default=""): str,
         vol.Required("typ"): vol.In(list(TYPES)),
         vol.Optional("invert", default=False): bool,
+        vol.Optional("akcje", default=[]): [str],
     }
 )
 @callback
@@ -152,6 +162,7 @@ def ws_save_sensor(hass: HomeAssistant, connection, msg) -> None:
         "name": msg["name"].strip() or ent,
         "typ": msg["typ"],
         "invert": bool(msg["invert"]),
+        SENSOR_ACTIONS: _clean(msg["akcje"]),
     }
     sid = msg.get("sensor_id")
     cur = next((s for s in sensors if sid and s.get("id") == sid), None)
@@ -192,6 +203,7 @@ def ws_delete_sensor(hass: HomeAssistant, connection, msg) -> None:
         vol.Optional("czas_wyjscia", default=DEFAULT_EXIT_DELAY): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=600)
         ),
+        vol.Optional("akcje_alarmu"): [str],
     }
 )
 @callback
@@ -200,9 +212,8 @@ def ws_settings(hass: HomeAssistant, connection, msg) -> None:
     if entry is None:
         connection.send_error(msg["id"], "not_found", "Nie ma takiej konfiguracji")
         return
-    _update(
-        hass,
-        entry,
-        **{CONF_ARM_ENTITY: msg["czuwanie"].strip(), CONF_EXIT_DELAY: msg["czas_wyjscia"]},
-    )
+    changes = {CONF_ARM_ENTITY: msg["czuwanie"].strip(), CONF_EXIT_DELAY: msg["czas_wyjscia"]}
+    if "akcje_alarmu" in msg:
+        changes[CONF_ALARM_ACTIONS] = _clean(msg["akcje_alarmu"])
+    _update(hass, entry, **changes)
     connection.send_result(msg["id"], {})

@@ -62,6 +62,14 @@ CONF_EXIT_DELAY = "czas_wyjscia"  # sekundy na wyjście po uzbrojeniu
 DEFAULT_EXIT_DELAY = 30
 ARM_DOMAINS = ["alarm_control_panel", "input_boolean", "binary_sensor", "switch"]
 MANUAL_SOURCE = "Ręcznie z HA"
+CONF_ALARM_ACTIONS = "akcje_alarmu"  # encje odpalane przy włamaniu (czujnik typu Alarm)
+SENSOR_ACTIONS = "akcje"  # w czujniku: jego własne encje do odpalenia
+ACTION_DOMAINS = [
+    "siren", "switch", "input_boolean", "light", "script", "scene",
+    "automation", "button", "input_button", "fan", "media_player",
+]
+# te gasimy po wyciszeniu / wyłączeniu alarmu
+ACTION_OFF_DOMAINS = ("siren", "switch", "input_boolean", "light", "fan", "media_player")
 
 
 def sensor_active(state: str | None, invert: bool) -> bool:

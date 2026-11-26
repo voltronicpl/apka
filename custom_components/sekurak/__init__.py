@@ -23,7 +23,10 @@ from homeassistant.helpers.network import NoURLAvailableError, get_url
 from .const import (
     ACTION_START,
     ACTION_STOP,
+    ACTION_OFF_DOMAINS,
+    CONF_ALARM_ACTIONS,
     CONF_ARM_ENTITY,
+    SENSOR_ACTIONS,
     CONF_EXIT_DELAY,
     CONF_SENSORS,
     DEFAULT_EXIT_DELAY,
@@ -84,6 +87,8 @@ class Sekurak:
         self._expire_unsub = None
         # czuwanie alarmu: do kiedy trwa czas na wyjście (monotonic), zaplanowane sprawdzenie
         self._in_exit: bool = False
+        # encje odpalone przy alarmie (typ -> encje), gaszone po wyciszeniu
+        self._fired: dict[str, set[str]] = {}
         self._exit_unsub = None
 
     @property
@@ -198,6 +203,53 @@ class Sekurak:
         self._set(typ, False)
         if was and notify_phone:
             await self._send(ACTION_STOP, typ)
+        await self._actions_off(typ)
+
+    # ---------- dodatkowe encje przy alarmie (syrena, skrypt, ...) ----------
+    def _actions_for(self, sensor: dict) -> list[str]:
+        ents: list[str] = []
+        if sensor.get("typ") == "alarm":
+            ents += list(self.options.get(CONF_ALARM_ACTIONS) or [])
+        ents += list(sensor.get(SENSOR_ACTIONS) or [])
+        return [e for e in dict.fromkeys(ents) if isinstance(e, str) and "." in e]
+
+    async def _actions_on(self, typ: str, ents: list[str]) -> None:
+        for ent in ents:
+            domain = ent.split(".", 1)[0]
+            if domain in ("script", "scene"):
+                svc, d = (domain, "turn_on")
+            elif domain == "automation":
+                svc, d = ("automation", "trigger")
+            elif domain in ("button", "input_button"):
+                svc, d = (domain, "press")
+            else:
+                svc, d = ("homeassistant", "turn_on")
+            _LOGGER.info("Sekurak: alarm %s – odpalam %s", typ, ent)
+            try:
+                await self.hass.services.async_call(svc, d, {"entity_id": ent}, blocking=False)
+            except Exception:  # noqa: BLE001 – jedna zła encja nie może zablokować alarmu
+                _LOGGER.exception("Sekurak: nie udało się odpalić %s", ent)
+                continue
+            if domain in ACTION_OFF_DOMAINS:
+                self._fired.setdefault(typ, set()).add(ent)
+
+    async def _actions_off(self, typ: str) -> None:
+        for ent in sorted(self._fired.pop(typ, set())):
+            _LOGGER.info("Sekurak: koniec alarmu %s – gaszę %s", typ, ent)
+            try:
+                await self.hass.services.async_call(
+                    "homeassistant", "turn_off", {"entity_id": ent}, blocking=False
+                )
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Sekurak: nie udało się zgasić %s", ent)
+
+    async def _trigger(self, sensor: dict) -> None:
+        """Czujnik odpalił: alarm na fon + jego encje (wspólne dla Alarmu i własne)."""
+        typ = sensor["typ"]
+        await self.async_start(typ, sensor.get("name"))
+        ents = self._actions_for(sensor)
+        if ents:
+            await self._actions_on(typ, ents)
 
     def _set(self, typ: str, value: bool) -> None:
         self.active[typ] = value
@@ -255,7 +307,7 @@ class Sekurak:
             st = self.hass.states.get(s["entity_id"])
             if sensor_active(st.state if st else None, bool(s.get("invert"))):
                 _LOGGER.info("Sekurak: po uzbrojeniu %s w złym stanie -> alarm", s["entity_id"])
-                self.hass.async_create_task(self.async_start("alarm", s.get("name")))
+                self.hass.async_create_task(self._trigger(s))
 
     # ---------- czujniki ----------
     @callback
@@ -279,7 +331,7 @@ class Sekurak:
                 if typ == "alarm" and not self.alarm_allowed():
                     continue
                 _LOGGER.info("Sekurak: %s (%s) -> %s", s.get("name"), s["entity_id"], typ)
-                self.hass.async_create_task(self.async_start(typ, s.get("name")))
+                self.hass.async_create_task(self._trigger(s))
 
         if by_entity:
             self._unsubs.append(

@@ -93,6 +93,11 @@ class SekurakPanel extends HTMLElement {
         .err { color: var(--error-color, #db4437); margin:8px 0; }
         .hint { color: var(--secondary-text-color); font-size:13px; margin-top:8px; }
         .empty { color: var(--secondary-text-color); padding:12px 0; }
+        .chips { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px; }
+        .chip { display:inline-flex; align-items:center; gap:4px; padding:4px 4px 4px 10px; border-radius:14px; background: var(--secondary-background-color, #eee); font-size:13px; }
+        .chip button { background:transparent; color: var(--secondary-text-color); padding:0 6px; font-size:16px; line-height:1; }
+        .addrow { display:flex; gap:8px; }
+        .addrow input { flex:1; }
         @media (max-width: 600px) { .hide-m { display:none; } }
       </style>
       <div class="top"><ha-menu-button></ha-menu-button><span>Sekurak</span></div>
@@ -110,7 +115,8 @@ class SekurakPanel extends HTMLElement {
         </div>
       </div>
       <datalist id="dl-trig"></datalist>
-      <datalist id="dl-arm"></datalist>`;
+      <datalist id="dl-arm"></datalist>
+      <datalist id="dl-act"></datalist>`;
     const r = this.shadowRoot;
     r.getElementById("add").addEventListener("click", () => this._openForm(null));
   }
@@ -163,6 +169,7 @@ class SekurakPanel extends HTMLElement {
     this._dlKey = key;
     this.shadowRoot.getElementById("dl-trig").innerHTML = opts(d.domeny);
     this.shadowRoot.getElementById("dl-arm").innerHTML = opts(d.domeny_czuwania);
+    this.shadowRoot.getElementById("dl-act").innerHTML = opts(d.domeny_akcji || []);
   }
 
   _renderArm(force) {
@@ -183,8 +190,12 @@ class SekurakPanel extends HTMLElement {
             <input type="number" id="arm-delay" min="0" max="600" value="${esc(e.czas_wyjscia)}"></div>
         </div>
         <div class="hint">Czujniki typu Alarm dzwonią tylko na uzbrojonym, po czasie na wyjście. Puste pole = dzwonią zawsze. Zalanie i reszta budzą zawsze.</div>
+        <label>Przy włamaniu włącz (każdy czujnik typu Alarm)</label>
+        ${this._chipsHtml("arm-act")}
+        <div class="hint">Np. syrena, skrypt, scena, przełącznik. Po wyciszeniu na fonie lub wyłączeniu alarmu w HA syrena/przełączniki same się gaszą.</div>
         <div class="actions"><button id="arm-save">Zapisz czuwanie</button></div>`;
       box.querySelector("#arm-save").addEventListener("click", () => this._saveArm());
+      this._bindChips(box, "arm-act", e.akcje_alarmu || []);
     }
     const b = box.querySelector("#badge");
     b.className = `badge ${cls}`;
@@ -215,7 +226,7 @@ class SekurakPanel extends HTMLElement {
       ${e.czujniki
         .map(
           (s) => `<tr>
-          <td>${esc(s.name)}<div class="ent">${esc(s.entity_id)}</div></td>
+          <td>${esc(s.name)}<div class="ent">${esc(s.entity_id)}</div>${(s.akcje || []).length ? `<div class="ent">włącza: ${esc(s.akcje.join(", "))}</div>` : ""}</td>
           <td>${esc(this._data.typy[s.typ] || s.typ)}</td>
           <td class="hide-m">${s.invert ? "tak" : "nie"}</td>
           <td data-state="${esc(s.id)}">${this._stateCell(s)}</td>
@@ -244,10 +255,55 @@ class SekurakPanel extends HTMLElement {
     }
   }
 
+  _chipsHtml(id) {
+    return `<div id="${id}"><div class="chips"></div>
+      <div class="addrow"><input type="text" list="dl-act" placeholder="np. siren.syrena albo script.wlamanie"><button class="flat" type="button">Dodaj</button></div>
+      <div class="err" data-err></div></div>`;
+  }
+
+  _bindChips(root, id, vals) {
+    const box = root.querySelector("#" + id);
+    box._vals = [...vals];
+    const inp = box.querySelector("input"), err = box.querySelector("[data-err]");
+    const draw = () => {
+      box.querySelector(".chips").innerHTML = box._vals
+        .map((v, i) => {
+          const st = this._hass.states[v];
+          const nm = st && st.attributes.friendly_name ? `${st.attributes.friendly_name} (${v})` : v;
+          return `<span class="chip">${esc(nm)}<button type="button" data-rm="${i}">×</button></span>`;
+        })
+        .join("") || `<span class="ent">(nic)</span>`;
+      box.querySelectorAll("[data-rm]").forEach((b) =>
+        b.addEventListener("click", () => { box._vals.splice(+b.dataset.rm, 1); draw(); })
+      );
+    };
+    const add = () => {
+      const v = inp.value.trim();
+      if (!v) return;
+      if (!this._hass.states[v]) { err.textContent = "Nie ma takiej encji – wybierz z listy."; return; }
+      err.textContent = "";
+      if (!box._vals.includes(v)) box._vals.push(v);
+      inp.value = "";
+      draw();
+    };
+    box.querySelector(".addrow button").addEventListener("click", add);
+    inp.addEventListener("change", add);
+    inp.addEventListener("keydown", (ev) => { if (ev.key === "Enter") add(); });
+    draw();
+  }
+
+  _chipVals(root, id) {
+    const box = root.querySelector("#" + id);
+    const inp = box.querySelector("input");
+    const v = inp.value.trim();
+    if (v && this._hass.states[v] && !box._vals.includes(v)) box._vals.push(v);
+    return box._vals;
+  }
+
   _openForm(s) {
     const d = this._data;
     if (!d || !this._entry) return;
-    this._form = s ? { ...s } : { id: null, entity_id: "", name: "", typ: "alarm", invert: false };
+    this._form = s ? { ...s } : { id: null, entity_id: "", name: "", typ: "alarm", invert: false, akcje: [] };
     const f = this._form;
     const box = this.shadowRoot.getElementById("form");
     box.hidden = false;
@@ -263,6 +319,9 @@ class SekurakPanel extends HTMLElement {
           .join("")}</select></div>
       </div>
       <label class="chk"><input type="checkbox" id="f-inv" ${f.invert ? "checked" : ""}> Odwrócony sygnał (alarm przy off / zamknięciu)</label>
+      <label>Ten czujnik dodatkowo włącza (opcjonalnie)</label>
+      ${this._chipsHtml("f-act")}
+      <div class="hint">Własne encje tego czujnika, odpalane razem z alarmem. Przy typie Alarm dochodzą do wspólnej listy z czuwania.</div>
       <div id="f-err" class="err"></div>
       <div class="actions"><button class="flat" id="f-cancel">Anuluj</button><button id="f-save">Zapisz</button></div>`;
     const ent = box.querySelector("#f-ent"), name = box.querySelector("#f-name");
@@ -272,6 +331,7 @@ class SekurakPanel extends HTMLElement {
     });
     box.querySelector("#f-cancel").addEventListener("click", () => this._closeForm());
     box.querySelector("#f-save").addEventListener("click", () => this._saveForm());
+    this._bindChips(box, "f-act", f.akcje || []);
     box.scrollIntoView({ behavior: "smooth", block: "start" });
     ent.focus();
   }
@@ -300,6 +360,7 @@ class SekurakPanel extends HTMLElement {
         name: box.querySelector("#f-name").value,
         typ: box.querySelector("#f-typ").value,
         invert: box.querySelector("#f-inv").checked,
+        akcje: this._chipVals(box, "f-act"),
       });
       this._closeForm();
       setTimeout(() => this._load(), 600);
@@ -333,6 +394,7 @@ class SekurakPanel extends HTMLElement {
         entry_id: this._entryId,
         czuwanie: ent,
         czas_wyjscia: parseInt(box.querySelector("#arm-delay").value || "0", 10) || 0,
+        akcje_alarmu: this._chipVals(box, "arm-act"),
       });
       this._err = "";
       setTimeout(async () => { await this._load(); this._renderArm(true); this._render(); }, 600);
