@@ -49,7 +49,7 @@ class SekurakSwitch(SwitchEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {"typ": self._typ, "webhook_url": self._sek.webhook_url}
+        return {"typ": self._typ}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._sek.async_start(self._typ)

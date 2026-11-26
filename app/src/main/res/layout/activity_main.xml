@@ -88,7 +88,7 @@
 
             <TextView
                 style="@style/Info"
-                android:text="Adres webhooka przychodzi sam z integracji Sekurak w HA (po restarcie HA albo z pierwszym alarmem). Tu możesz opcjonalnie wpisać zapasowy. Po wyciszeniu alarmu HA wyłączy właściwy przełącznik." />
+                android:text="Adres wyciszenia jest jednorazowy: każdy alarm z HA przynosi nowy, losowy, ważny do wyciszenia (max 15 min). Nic nie wpisujesz." />
 
             <EditText
                 android:id="@+id/etWebhook"

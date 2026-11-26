@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 from typing import Any
 from urllib.parse import quote
 
@@ -14,23 +15,19 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_state_change_event
+from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.network import NoURLAvailableError, get_url
-from homeassistant.helpers.start import async_at_started
 
 from .const import (
-    ACTION_CONFIG,
     ACTION_START,
     ACTION_STOP,
     ACTIVE_STATES,
     CONF_EXTERNAL,
-    CONF_EXTRA_WEBHOOK,
     CONF_NOTIFY,
     CONF_SECRET,
-    CONF_WEBHOOK_ID,
     DEFAULT_EXTERNAL,
-    DEFAULT_EXTRA_WEBHOOK,
     DOMAIN,
+    ONE_TIME_TTL,
     LEGACY_HELPERS,
     TURN_OFF_DOMAINS,
     PACKAGE,
@@ -65,50 +62,68 @@ class Sekurak:
         self.entry = entry
         self.active: dict[str, bool] = {t: False for t in TYPES}
         self._unsubs: list = []
-        self.registered: list[str] = []
+        # jednorazowy webhook: losowe ID na czas alarmu, kasowane po wyciszeniu / max 15 min
+        self.one_time_id: str | None = None
+        self._expire_unsub = None
 
     @property
     def options(self) -> dict[str, Any]:
         return {**self.entry.data, **self.entry.options}
 
     @property
-    def webhook_ids(self) -> list[str]:
-        """Główne ID (losowe) + dodatkowe (domyślnie stare z YAML)."""
-        ids = [self.entry.data[CONF_WEBHOOK_ID]]
-        extra = (self.options.get(CONF_EXTRA_WEBHOOK, DEFAULT_EXTRA_WEBHOOK) or "").strip()
-        if extra and extra not in ids:
-            ids.append(extra)
-        return ids
-
-    @property
     def external_base(self) -> str:
         return fix_external(self.options.get(CONF_EXTERNAL, DEFAULT_EXTERNAL))
 
-    @property
-    def webhook_url(self) -> str:
-        return build_webhook_url(self.hass, self.external_base, self.entry.data[CONF_WEBHOOK_ID])
+    # ---------- jednorazowy webhook ----------
+    @callback
+    def _ensure_one_time(self) -> str:
+        """Losowe ID webhooka na ten alarm. Wspólne dla typów, które dzwonią naraz."""
+        if self.one_time_id is None:
+            wid = f"sekurak_{secrets.token_urlsafe(24)}"
+            webhook.async_register(
+                self.hass, DOMAIN, f"Sekurak ({self.entry.title})", wid,
+                self.handle_webhook, allowed_methods=["POST"],
+            )
+            self.one_time_id = wid
+            self._expire_unsub = async_call_later(self.hass, ONE_TIME_TTL, self._expire)
+            _LOGGER.info("Sekurak: nowy jednorazowy webhook (ważny %s s)", ONE_TIME_TTL)
+        return self.one_time_id
 
-    @property
-    def webhook_url_local(self) -> str:
-        return webhook.async_generate_url(
-            self.hass, self.entry.data[CONF_WEBHOOK_ID], allow_external=False
-        )
+    @callback
+    def _drop_one_time(self) -> None:
+        if self._expire_unsub:
+            self._expire_unsub()
+            self._expire_unsub = None
+        if self.one_time_id:
+            webhook.async_unregister(self.hass, self.one_time_id)
+            _LOGGER.info("Sekurak: jednorazowy webhook skasowany")
+            self.one_time_id = None
+
+    @callback
+    def _expire(self, _now) -> None:
+        self._expire_unsub = None
+        self._drop_one_time()
+
+    def url_for(self, wid: str) -> str:
+        return build_webhook_url(self.hass, self.external_base, wid)
+
+    def url_local_for(self, wid: str) -> str:
+        return webhook.async_generate_url(self.hass, wid, allow_external=False)
 
     # ---------- wysyłka do telefonu ----------
-    async def _send(self, action: str, typ: str | None = None) -> None:
+    async def _send(self, action: str, typ: str, wid: str | None = None) -> None:
         notify = self.options[CONF_NOTIFY].removeprefix("notify.")
-        parts = []
-        if typ:
-            parts.append(f"typ:{typ}")
-        # adres webhooka jedzie do telefonu z każdym sygnałem – apka sama go zapamiętuje
-        parts.append(f"webhook:{quote(self.webhook_url, safe='')}:urlencoded")
-        # zapas: adres lokalny (działa w domu, gdy zewnętrzny nie przejdzie)
-        try:
-            local = self.webhook_url_local
-            if local != self.webhook_url:
-                parts.append(f"webhook2:{quote(local, safe='')}:urlencoded")
-        except Exception:  # noqa: BLE001 – brak adresu lokalnego
-            pass
+        parts = [f"typ:{typ}"]
+        if wid:
+            # jednorazowy adres wyciszenia jedzie razem z alarmem
+            url = self.url_for(wid)
+            parts.append(f"webhook:{quote(url, safe='')}:urlencoded")
+            try:
+                local = self.url_local_for(wid)
+                if local != url:
+                    parts.append(f"webhook2:{quote(local, safe='')}:urlencoded")
+            except Exception:  # noqa: BLE001 – brak adresu lokalnego
+                pass
         secret = (self.options.get(CONF_SECRET) or "").strip()
         if secret:
             parts.append(f"secret:{secret}")
@@ -128,29 +143,21 @@ class Sekurak:
             blocking=False,
         )
 
-    async def async_send_config(self) -> None:
-        """Wyślij telefonowi sam adres webhooka (po starcie HA / zmianie opcji)."""
-        try:
-            await self._send(ACTION_CONFIG)
-            _LOGGER.info("Sekurak: wysłano adres webhooka do telefonu: %s", self.webhook_url)
-        except Exception as err:  # noqa: BLE001 – brak usługi notify itp.
-            _LOGGER.warning("Sekurak: nie udało się wysłać adresu webhooka: %s", err)
-
     async def async_start(self, typ: str) -> None:
         """Włącz alarm typu. START idzie 2x co 3 s (jak w starej automatyzacji),
         powtórka leci w tle, żeby nie blokować przycisku/usługi."""
         if self.active.get(typ):
             return
         self._set(typ, True)
-        await self._send(ACTION_START, typ)
+        await self._send(ACTION_START, typ, self._ensure_one_time())
         self.hass.async_create_background_task(
             self._repeat_start(typ), f"sekurak_repeat_{typ}"
         )
 
     async def _repeat_start(self, typ: str) -> None:
         await asyncio.sleep(3)
-        if self.active.get(typ):
-            await self._send(ACTION_START, typ)
+        if self.active.get(typ) and self.one_time_id:
+            await self._send(ACTION_START, typ, self.one_time_id)
 
     async def async_stop(self, typ: str, notify_phone: bool = True) -> None:
         """Wyłącz alarm typu (z HA albo po wyciszeniu na telefonie)."""
@@ -161,6 +168,8 @@ class Sekurak:
 
     def _set(self, typ: str, value: bool) -> None:
         self.active[typ] = value
+        if not any(self.active.values()):
+            self._drop_one_time()
         async_dispatcher_send(self.hass, SIGNAL_UPDATE.format(self.entry.entry_id))
 
     # ---------- encje wyzwalające ----------
@@ -198,11 +207,14 @@ class Sekurak:
         except ValueError:
             body = {}
         typy = [t for t in (body.get("typy") or []) if t in TYPES]
-        _LOGGER.info("Sekurak: webhook %s, wyciszone typy: %s", webhook_id, typy or "test")
+        _LOGGER.info("Sekurak: webhook wyciszenia, typy: %s", typy or "test")
         for typ in typy:
             # telefon już wyciszył – nie wysyłamy mu STOP
             await self.async_stop(typ, notify_phone=False)
             await self._turn_off_sources(typ)
+        if typy:
+            # adres był jednorazowy – po wyciszeniu przestaje działać
+            self._drop_one_time()
         return web.json_response({"sekurak": "ok", "wyciszone": typy})
 
     async def _turn_off_sources(self, typ: str) -> None:
@@ -222,6 +234,7 @@ class Sekurak:
 
     @callback
     def async_unload(self) -> None:
+        self._drop_one_time()
         for u in self._unsubs:
             u()
         self._unsubs.clear()
@@ -231,30 +244,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     sek = Sekurak(hass, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = sek
 
-    registered: list[str] = []
-    for wid in sek.webhook_ids:
-        try:
-            webhook.async_register(
-                hass,
-                DOMAIN,
-                f"Sekurak ({entry.title})",
-                wid,
-                sek.handle_webhook,
-                allowed_methods=["POST"],
-            )
-            registered.append(wid)
-        except ValueError:
-            _LOGGER.warning(
-                "Sekurak: webhook %s jest już zajęty (np. przez starą automatyzację YAML) – pomijam",
-                wid,
-            )
-    sek.registered = registered
+    # Brak stałego webhooka – każdy alarm dostaje własny, losowy, jednorazowy.
     sek.async_listen()
-
-    async def _started(_hass: HomeAssistant) -> None:
-        await sek.async_send_config()
-
-    entry.async_on_unload(async_at_started(hass, _started))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_reload))
     return True
@@ -269,6 +260,4 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if ok:
         sek: Sekurak = hass.data[DOMAIN].pop(entry.entry_id)
         sek.async_unload()
-        for wid in sek.registered:
-            webhook.async_unregister(hass, wid)
     return ok

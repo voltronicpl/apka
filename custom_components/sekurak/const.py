@@ -6,7 +6,6 @@ CONF_NOTIFY = "notify_service"
 CONF_WEBHOOK_ID = "webhook_id"
 CONF_SECRET = "secret"
 CONF_EXTERNAL = "external_url"
-CONF_EXTRA_WEBHOOK = "extra_webhook_id"
 
 # Adres zewnętrzny HA (tak jak w Companion App). Puste = weź z HA (zewnętrzny URL / Nabu Casa).
 DEFAULT_EXTERNAL = "https://www.pusiloft.ovh"
@@ -19,13 +18,12 @@ def fix_external(url: str) -> str:
         if url == old or url.startswith(old + "/"):
             return "https://www.pusiloft.ovh" + url[len(old):]
     return url
-# Stary webhook z automatyzacji YAML – dalej obsługiwany, gdy wolny.
-DEFAULT_EXTRA_WEBHOOK = "sekurak_wycisz_pudaul75"
+# Jednorazowy webhook wyciszenia: ważny do wyciszenia, najdłużej 15 min.
+ONE_TIME_TTL = 15 * 60
 
 PACKAGE = "pl.sekurak.alarm"
 ACTION_START = "pl.sekurak.START"
 ACTION_STOP = "pl.sekurak.STOP"
-ACTION_CONFIG = "pl.sekurak.CONFIG"
 
 # Typy alarmów – klucze takie same jak w apce (AlarmType.kt)
 TYPES: dict[str, str] = {

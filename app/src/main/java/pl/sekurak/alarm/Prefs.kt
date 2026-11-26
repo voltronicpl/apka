@@ -23,11 +23,16 @@ class Prefs(context: Context) {
         get() = p.getString("webhook_auto2", "")!!.trim()
         set(v) = p.edit().putString("webhook_auto2", v.trim()).apply()
 
-    /** Adresy: od HA (zewnętrzny, lokalny), wpisany ręcznie, na końcu stary awaryjny. */
+    /** Adresy: tylko jednorazowe od HA (zewnętrzny, lokalny) – brak stałych webhooków. */
     val webhookUrls: List<String>
-        get() = listOf(webhookAuto, webhookAuto2, webhookUrl, Webhook.LEGACY_URL)
+        get() = listOf(webhookAuto, webhookAuto2)
             .map(Webhook::fixHost)
             .filter { it.startsWith("http") }.distinct()
+
+    /** Po wyciszeniu adres jest już nieważny – zapomnij go. */
+    fun clearWebhookAuto() {
+        p.edit().remove("webhook_auto").remove("webhook_auto2").apply()
+    }
 
     /** Opcjonalny sekret – jeśli ustawiony, sygnał START z HA musi go zawierać. */
     var secret: String

@@ -17,15 +17,14 @@
     "step": {
       "init": {
         "title": "Sekurak – co odpala alarmy",
-        "description": "Wybierz encje, które włączają dany alarm (alarm_control_panel przy stanie triggered, reszta przy on). Można wybrać kilka.\n\nAdres webhooka (wysyłany do apki automatycznie): {webhook_url}\nLokalnie (tylko w domu): {webhook_local}",
+        "description": "Wybierz encje, które włączają dany alarm (alarm_control_panel przy stanie triggered, reszta przy on). Można wybrać kilka.\n\nWebhook wyciszenia jest jednorazowy: każdy alarm dostaje nowe, losowe ID, które przestaje działać po wyciszeniu (najdłużej 15 min). Wzór adresu: {webhook_url}",
         "data": {
           "encje_alarm": "Alarm (np. Ropam)",
           "encje_zalanie": "Zalanie",
           "encje_domofon": "Domofon",
           "encje_ogolny": "Ogólny",
           "secret": "Sekret (taki sam jak w apce, puste = brak)",
-          "external_url": "Adres zewnętrzny HA, jak w Companion App (puste = z ustawień HA / Nabu Casa)",
-          "extra_webhook_id": "Dodatkowe ID webhooka (domyślnie stare z automatyzacji YAML)"
+          "external_url": "Adres zewnętrzny HA, jak w Companion App (puste = z ustawień HA / Nabu Casa)"
         }
       }
     }

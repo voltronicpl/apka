@@ -190,12 +190,12 @@ class MainActivity : AppCompatActivity() {
     /** Pokazuje adres, który przysłała integracja HA (pole ręczne może zostać puste). */
     private fun showAutoWebhook() {
         val auto = listOf(prefs.webhookAuto, prefs.webhookAuto2).filter { it.isNotEmpty() }
-        etWebhook.hint = if (auto.isEmpty()) "Brak adresu z HA – awaryjnie: ${Webhook.LEGACY_URL}"
-        else "Z HA: ${auto.joinToString(" | ")}"
+        // Stałych adresów już nie ma – pole ręczne ukryte.
+        etWebhook.visibility = android.view.View.GONE
         findViewById<TextView>(R.id.tvWebhookStatus).let { tv ->
             if (tv.text.isNullOrEmpty()) tv.text = if (auto.isEmpty())
-                "Adres z HA: jeszcze nie przyszedł (restart HA albo alarm z integracji)"
-            else "Adres z HA:\n${auto.joinToString("\n")}"
+                "Webhook jednorazowy: przyjdzie z HA razem z alarmem i zniknie po wyciszeniu"
+            else "Aktywny jednorazowy webhook z HA:\n${auto.joinToString("\n")}"
         }
     }
 

@@ -27,7 +27,8 @@ Zamiast automatyzacji YAML możesz użyć integracji **Sekurak** – encje wybie
 2. Ustawienia → Urządzenia i usługi → Dodaj integrację → **Sekurak** → wybierz telefon (`notify.mobile_app_…`).
 3. **Konfiguruj**: dla Alarmu, Zalania, Domofonu i Ogólnego wybierz dowolnie wiele encji
    (`alarm_control_panel` odpala przy `triggered`, `binary_sensor`/`input_boolean`/`switch` przy `on`).
-   Adres webhooka integracja sama wysyła do apki (po starcie HA i z każdym alarmem) – nic nie wpisujesz.
+   Webhook wyciszenia jest **jednorazowy**: każdy alarm dostaje nowe, losowe ID, które przychodzi do apki razem
+   z alarmem i przestaje działać po wyciszeniu (najdłużej 15 min). Stałych webhooków nie ma – nic nie wpisujesz.
    Bierze go z HA (adres zewnętrzny albo Nabu Casa); pole „Adres zewnętrzny HA” w Konfiguruj go nadpisuje.
 4. Integracja tworzy przełącznik na każdy typ (ON = dzwoni, OFF = gasi telefon) i przycisk **Gdzie jest fon**.
 5. Wyłącz starą automatyzację z `home_assistant_automatyzacje.yaml`, inaczej alarmy pójdą podwójnie.

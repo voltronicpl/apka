@@ -13,9 +13,6 @@ import java.net.URL
 
 /** Webhook do HA po wyciszeniu alarmu: wysyła listę wyciszonych typów, HA wyłącza ich przełączniki. */
 object Webhook {
-    /** Stary webhook (automatyzacja YAML / integracja) – zawsze próbowany na końcu. */
-    const val LEGACY_URL = "https://www.pusiloft.ovh/api/webhook/sekurak_wycisz_pudaul75"
-
     /** Goły pusiloft.ovh daje 404 z Cloudflare – działa tylko z www. */
     fun fixHost(url: String): String {
         val u = url.trim()
@@ -72,7 +69,7 @@ object Webhook {
     fun call(urls: List<String>, types: List<AlarmType>): Result<Ok> {
         val log = mutableListOf<String>()
         if (urls.isEmpty()) {
-            log += "Brak adresu – poczekaj, aż HA go przyśle (restart HA albo pierwszy alarm), albo wpisz ręcznie"
+            log += "Brak adresu – adres wyciszenia jest jednorazowy i przychodzi z HA razem z alarmem"
             return Result.failure(Failed(log))
         }
         // Wyciszenie idzie na WSZYSTKIE adresy (integracja + stary YAML), nie tylko pierwszy.
@@ -113,6 +110,7 @@ object Webhook {
                 notifyFail(app, msg)
             } else {
                 app.getSystemService(NotificationManager::class.java).cancel(NOTIF_FAIL)
+                if (types.isNotEmpty()) Prefs(app).clearWebhookAuto() // jednorazowy
             }
         }.start()
     }
