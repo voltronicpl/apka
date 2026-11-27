@@ -40,9 +40,11 @@ class SekurakPanel extends HTMLElement {
 
   connectedCallback() {
     this._timer = setInterval(() => this._load(), 5000);
+    this._tick = setInterval(() => this._autoStatus(), 1000);
   }
   disconnectedCallback() {
     clearInterval(this._timer);
+    clearInterval(this._tick);
   }
 
   async _load() {
@@ -85,7 +87,7 @@ class SekurakPanel extends HTMLElement {
         button.flat { background:transparent; color: var(--primary-color, #03a9f4); padding:6px 8px; }
         button.del { background:transparent; color: var(--error-color, #db4437); padding:6px 8px; }
         label { display:block; font-size:13px; color: var(--secondary-text-color); margin:10px 0 4px; }
-        input[type=text], input[type=number], select { width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid var(--divider-color, #ccc); background: var(--card-background-color, #fff); color: var(--primary-text-color); font: inherit; }
+        input[type=text], input[type=number], input[type=password], select { width:100%; box-sizing:border-box; padding:10px; border-radius:8px; border:1px solid var(--divider-color, #ccc); background: var(--card-background-color, #fff); color: var(--primary-text-color); font: inherit; }
         .row { display:flex; gap:12px; flex-wrap:wrap; }
         .row > div { flex:1 1 220px; }
         .chk { display:flex; align-items:center; gap:8px; margin-top:12px; color: var(--primary-text-color); font-size:14px; }
@@ -105,6 +107,7 @@ class SekurakPanel extends HTMLElement {
         <div id="err" class="err"></div>
         <div id="picker"></div>
         <div class="card" id="arm"></div>
+        <div class="card" id="auto"></div>
         <div class="card" id="form" hidden></div>
         <div class="card">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -116,7 +119,8 @@ class SekurakPanel extends HTMLElement {
       </div>
       <datalist id="dl-trig"></datalist>
       <datalist id="dl-arm"></datalist>
-      <datalist id="dl-act"></datalist>`;
+      <datalist id="dl-act"></datalist>
+      <datalist id="dl-pres"></datalist>`;
     const r = this.shadowRoot;
     r.getElementById("add").addEventListener("click", () => this._openForm(null));
   }
@@ -142,6 +146,7 @@ class SekurakPanel extends HTMLElement {
           this._entryId = ev.target.value;
           this._form = null;
           this._renderArm(true);
+          this._renderAuto(true);
           this._render();
         });
       }
@@ -152,6 +157,7 @@ class SekurakPanel extends HTMLElement {
     } else pk.innerHTML = "";
     this._fillDatalists();
     this._renderArm(false);
+    this._renderAuto(false);
     this._renderList();
   }
 
@@ -170,6 +176,7 @@ class SekurakPanel extends HTMLElement {
     this.shadowRoot.getElementById("dl-trig").innerHTML = opts(d.domeny);
     this.shadowRoot.getElementById("dl-arm").innerHTML = opts(d.domeny_czuwania);
     this.shadowRoot.getElementById("dl-act").innerHTML = opts(d.domeny_akcji || []);
+    this.shadowRoot.getElementById("dl-pres").innerHTML = opts(d.domeny_obecnosci || []);
   }
 
   _renderArm(force) {
@@ -200,6 +207,78 @@ class SekurakPanel extends HTMLElement {
     const b = box.querySelector("#badge");
     b.className = `badge ${cls}`;
     b.textContent = txt + (e.aktywne && e.aktywne.length ? ` · teraz dzwoni: ${e.aktywne.map((t) => this._data.typy[t] || t).join(", ")}` : "");
+  }
+
+  _renderAuto(force) {
+    const e = this._entry;
+    const box = this.shadowRoot.getElementById("auto");
+    if (!e) return;
+    if (force || box.dataset.entry !== e.entry_id) {
+      box.dataset.entry = e.entry_id;
+      box.innerHTML = `
+        <h2>Auto-uzbrojenie</h2>
+        <label class="chk"><input type="checkbox" id="au-on" ${e.auto_uzbrojenie ? "checked" : ""}> Uzbrój alarm, gdy wszystkie wybrane telefony wyjdą z domu</label>
+        <div id="au-warn" class="err"></div>
+        <label>Telefony / osoby</label>
+        ${this._chipsHtml("au-tel", "dl-pres", "np. person.misiek albo device_tracker.fon")}
+        <div class="row">
+          <div><label>Opóźnienie po wyjściu ostatniego (s)</label>
+            <input type="number" id="au-delay" min="0" max="3600" value="${esc(e.auto_opoznienie)}"></div>
+          <div><label>Kod centrali (tylko jeśli wymaga)</label>
+            <input type="password" id="au-kod" autocomplete="new-password" placeholder="${e.kod_ustawiony ? "ustawiony – puste = bez zmian" : "brak"}"></div>
+        </div>
+        <div id="au-status" class="hint"></div>
+        <div class="hint">Rozbrajasz ręcznie – powrót do domu nie rozbraja (kradziony fon nie otworzy chaty). Uzbraja tylko w chwili, gdy wyjdzie ostatni.</div>
+        <div class="actions">${e.kod_ustawiony ? `<button class="flat" id="au-kod-del">Usuń kod</button>` : ""}<button id="au-save">Zapisz auto-uzbrojenie</button></div>`;
+      this._bindChips(box, "au-tel", e.telefony || []);
+      box.querySelector("#au-save").addEventListener("click", () => this._saveAuto(false));
+      const kd = box.querySelector("#au-kod-del");
+      if (kd) kd.addEventListener("click", () => this._saveAuto(true));
+    }
+    box.querySelector("#au-warn").textContent = !e.czuwanie
+      ? "Najpierw ustaw encję czuwania wyżej – to ją Sekurak uzbraja."
+      : !e.da_sie_uzbroic
+      ? `Encji ${e.czuwanie} nie da się uzbroić z HA (działa tylko centrala alarmu, input_boolean albo switch).`
+      : "";
+    this._autoStatus();
+  }
+
+  _autoStatus() {
+    const e = this._entry;
+    const el = this.shadowRoot.getElementById("au-status");
+    if (!e || !el || !this._hass) return;
+    const who = (e.telefony || []).map((id) => {
+      const st = this._hass.states[id];
+      const nm = (st && st.attributes.friendly_name) || id;
+      const s = st ? st.state : "brak";
+      return `${nm}: ${s === "home" ? "w domu" : s === "not_home" ? "poza domem" : s}`;
+    });
+    let t = who.length ? who.join(" · ") : "Brak wybranych telefonów.";
+    if (e.auto_at) {
+      const left = Math.max(0, Math.round(e.auto_at - Date.now() / 1000));
+      t += ` — uzbrajam za ${left} s`;
+    }
+    el.textContent = t;
+  }
+
+  async _saveAuto(delCode) {
+    const box = this.shadowRoot.getElementById("auto");
+    const kod = box.querySelector("#au-kod").value;
+    try {
+      await this._hass.callWS({
+        type: "sekurak/settings",
+        entry_id: this._entryId,
+        auto_uzbrojenie: box.querySelector("#au-on").checked,
+        telefony: this._chipVals(box, "au-tel"),
+        auto_opoznienie: parseInt(box.querySelector("#au-delay").value || "0", 10) || 0,
+        kod: delCode ? "" : kod ? kod : null,
+      });
+      this._err = "";
+      setTimeout(async () => { await this._load(); this._renderAuto(true); this._render(); }, 600);
+    } catch (err) {
+      this._err = err.message || String(err);
+      this._render();
+    }
   }
 
   _stateCell(s) {
@@ -249,15 +328,16 @@ class SekurakPanel extends HTMLElement {
     const e = this._entry;
     if (!e) return;
     this._fillDatalists();
+    this._autoStatus();
     for (const s of e.czujniki) {
       const td = this.shadowRoot.querySelector(`[data-state="${CSS.escape(s.id)}"]`);
       if (td) td.innerHTML = this._stateCell(s);
     }
   }
 
-  _chipsHtml(id) {
+  _chipsHtml(id, list = "dl-act", ph = "np. siren.syrena albo script.wlamanie") {
     return `<div id="${id}"><div class="chips"></div>
-      <div class="addrow"><input type="text" list="dl-act" placeholder="np. siren.syrena albo script.wlamanie"><button class="flat" type="button">Dodaj</button></div>
+      <div class="addrow"><input type="text" list="${list}" placeholder="${esc(ph)}"><button class="flat" type="button">Dodaj</button></div>
       <div class="err" data-err></div></div>`;
   }
 

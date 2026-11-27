@@ -13,6 +13,13 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.core import HomeAssistant, callback
 
 from .const import (
+    ARMABLE_DOMAINS,
+    CONF_ARM_CODE,
+    CONF_AUTO_DELAY,
+    CONF_AUTO_ON,
+    CONF_AUTO_TRACKERS,
+    DEFAULT_AUTO_DELAY,
+    PRESENCE_DOMAINS,
     ACTION_DOMAINS,
     CONF_ALARM_ACTIONS,
     SENSOR_ACTIONS,
@@ -31,7 +38,7 @@ from .const import (
 PANEL_URL = "sekurak"
 STATIC_URL = "/sekurak_static"
 PANEL_JS = "sekurak-panel.js"
-PANEL_VERSION = "1.0.18"
+PANEL_VERSION = "1.0.19"
 
 
 async def async_setup_panel(hass: HomeAssistant) -> None:
@@ -101,6 +108,12 @@ def _entry_info(hass: HomeAssistant, entry) -> dict[str, Any]:
         "czuwanie": opts.get(CONF_ARM_ENTITY) or "",
         "czas_wyjscia": int(opts.get(CONF_EXIT_DELAY, DEFAULT_EXIT_DELAY)),
         "akcje_alarmu": list(opts.get(CONF_ALARM_ACTIONS) or []),
+        "auto_uzbrojenie": bool(opts.get(CONF_AUTO_ON)),
+        "telefony": list(opts.get(CONF_AUTO_TRACKERS) or []),
+        "auto_opoznienie": int(opts.get(CONF_AUTO_DELAY, DEFAULT_AUTO_DELAY)),
+        "kod_ustawiony": bool(opts.get(CONF_ARM_CODE)),
+        "auto_at": sek.auto_at if sek else None,
+        "da_sie_uzbroic": (opts.get(CONF_ARM_ENTITY) or "").split(".", 1)[0] in ARMABLE_DOMAINS,
         "status": _arm_status(hass, entry),
         "aktywne": [t for t, v in (sek.active.items() if sek else []) if v],
     }
@@ -119,6 +132,7 @@ def ws_get(hass: HomeAssistant, connection, msg) -> None:
             "domeny": TRIGGER_DOMAINS,
             "domeny_czuwania": ARM_DOMAINS,
             "domeny_akcji": ACTION_DOMAINS,
+            "domeny_obecnosci": PRESENCE_DOMAINS,
         },
     )
 
@@ -199,11 +213,15 @@ def ws_delete_sensor(hass: HomeAssistant, connection, msg) -> None:
     {
         vol.Required("type"): "sekurak/settings",
         vol.Required("entry_id"): str,
-        vol.Optional("czuwanie", default=""): str,
-        vol.Optional("czas_wyjscia", default=DEFAULT_EXIT_DELAY): vol.All(
+        vol.Optional("czuwanie"): str,
+        vol.Optional("czas_wyjscia"): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=600)
         ),
         vol.Optional("akcje_alarmu"): [str],
+        vol.Optional("auto_uzbrojenie"): bool,
+        vol.Optional("telefony"): [str],
+        vol.Optional("auto_opoznienie"): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),
+        vol.Optional("kod"): vol.Any(str, None),
     }
 )
 @callback
@@ -212,8 +230,20 @@ def ws_settings(hass: HomeAssistant, connection, msg) -> None:
     if entry is None:
         connection.send_error(msg["id"], "not_found", "Nie ma takiej konfiguracji")
         return
-    changes = {CONF_ARM_ENTITY: msg["czuwanie"].strip(), CONF_EXIT_DELAY: msg["czas_wyjscia"]}
+    changes: dict[str, Any] = {}
+    if "czuwanie" in msg:
+        changes[CONF_ARM_ENTITY] = msg["czuwanie"].strip()
+    if "czas_wyjscia" in msg:
+        changes[CONF_EXIT_DELAY] = msg["czas_wyjscia"]
     if "akcje_alarmu" in msg:
         changes[CONF_ALARM_ACTIONS] = _clean(msg["akcje_alarmu"])
+    if "auto_uzbrojenie" in msg:
+        changes[CONF_AUTO_ON] = msg["auto_uzbrojenie"]
+    if "telefony" in msg:
+        changes[CONF_AUTO_TRACKERS] = _clean(msg["telefony"])
+    if "auto_opoznienie" in msg:
+        changes[CONF_AUTO_DELAY] = msg["auto_opoznienie"]
+    if msg.get("kod") is not None:  # None = zostaw stary, "" = skasuj
+        changes[CONF_ARM_CODE] = msg["kod"].strip()
     _update(hass, entry, **changes)
     connection.send_result(msg["id"], {})

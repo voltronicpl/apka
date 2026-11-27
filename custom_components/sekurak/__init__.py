@@ -19,12 +19,18 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event
 from homeassistant.helpers.network import NoURLAvailableError, get_url
+from homeassistant.util import dt as dt_util
 
 from .const import (
     ACTION_START,
     ACTION_STOP,
     ACTION_OFF_DOMAINS,
     CONF_ALARM_ACTIONS,
+    CONF_ARM_CODE,
+    CONF_AUTO_DELAY,
+    CONF_AUTO_ON,
+    CONF_AUTO_TRACKERS,
+    DEFAULT_AUTO_DELAY,
     CONF_ARM_ENTITY,
     SENSOR_ACTIONS,
     CONF_EXIT_DELAY,
@@ -89,6 +95,10 @@ class Sekurak:
         self._in_exit: bool = False
         # encje odpalone przy alarmie (typ -> encje), gaszone po wyciszeniu
         self._fired: dict[str, set[str]] = {}
+        # auto-uzbrojenie: zaplanowane uzbrojenie po wyjściu wszystkich
+        self._auto_unsub = None
+        self.auto_at: float | None = None  # timestamp (UTC) planowanego uzbrojenia
+        self._was_away = False
         self._exit_unsub = None
 
     @property
@@ -292,6 +302,7 @@ class Sekurak:
     def _armed(self) -> None:
         """Uzbrojono: odlicz czas na wyjście, potem sprawdź wszystkie czujniki Alarmu."""
         self._cancel_exit()
+        self._cancel_auto()
         delay = max(0, self.exit_delay)
         self._in_exit = delay > 0
         _LOGGER.info("Sekurak: uzbrojono, czas na wyjście %s s", delay)
@@ -309,9 +320,114 @@ class Sekurak:
                 _LOGGER.info("Sekurak: po uzbrojeniu %s w złym stanie -> alarm", s["entity_id"])
                 self.hass.async_create_task(self._trigger(s))
 
+    # ---------- auto-uzbrojenie (wszyscy wyszli z domu) ----------
+    @property
+    def auto_trackers(self) -> list[str]:
+        return [e for e in self.options.get(CONF_AUTO_TRACKERS) or [] if isinstance(e, str)]
+
+    @property
+    def auto_enabled(self) -> bool:
+        return bool(self.options.get(CONF_AUTO_ON)) and bool(self.auto_trackers)
+
+    @property
+    def auto_delay(self) -> int:
+        try:
+            return max(0, int(self.options.get(CONF_AUTO_DELAY, DEFAULT_AUTO_DELAY)))
+        except (TypeError, ValueError):
+            return DEFAULT_AUTO_DELAY
+
+    def everyone_away(self) -> bool:
+        """Wszyscy wybrani znani i poza domem (unknown/unavailable = nie wiadomo -> nie uzbrajaj)."""
+        if not self.auto_trackers:
+            return False
+        for ent in self.auto_trackers:
+            st = self.hass.states.get(ent)
+            if st is None or st.state in ("home", "unknown", "unavailable"):
+                return False
+        return True
+
+    @callback
+    def _cancel_auto(self) -> None:
+        self.auto_at = None
+        if self._auto_unsub:
+            self._auto_unsub()
+            self._auto_unsub = None
+
+    @callback
+    def _schedule_auto(self) -> None:
+        if self._auto_unsub:
+            return
+        delay = self.auto_delay
+        self.auto_at = dt_util.utcnow().timestamp() + delay
+        _LOGGER.info("Sekurak: wszyscy wyszli – uzbrajam za %s s", delay)
+        self._auto_unsub = async_call_later(self.hass, delay, self._auto_fire)
+
+    @callback
+    def _auto_fire(self, _now) -> None:
+        self._auto_unsub = None
+        self.auto_at = None
+        if not self.auto_enabled or not self.everyone_away():
+            return
+        self.hass.async_create_task(self.async_arm())
+
+    async def async_arm(self) -> bool:
+        """Uzbraja encję czuwania (centrala: arm away, input_boolean/switch: on)."""
+        ent = self.arm_entity
+        if not ent:
+            _LOGGER.warning("Sekurak: auto-uzbrojenie – brak encji czuwania")
+            return False
+        st = self.hass.states.get(ent)
+        if is_armed(st.state if st else None):
+            return False
+        domain = ent.split(".", 1)[0]
+        if domain == "alarm_control_panel":
+            data = {"entity_id": ent}
+            if self.options.get(CONF_ARM_CODE):
+                data["code"] = str(self.options[CONF_ARM_CODE])
+            svc = ("alarm_control_panel", "alarm_arm_away", data)
+        elif domain in ("input_boolean", "switch"):
+            svc = (domain, "turn_on", {"entity_id": ent})
+        else:
+            _LOGGER.warning("Sekurak: %s nie da się uzbroić z HA", ent)
+            return False
+        _LOGGER.info("Sekurak: auto-uzbrojenie %s", ent)
+        try:
+            await self.hass.services.async_call(*svc, blocking=False)
+        except Exception:  # noqa: BLE001
+            _LOGGER.exception("Sekurak: nie udało się uzbroić %s", ent)
+            return False
+        return True
+
+    @callback
+    def _listen_presence(self) -> None:
+        if not self.auto_enabled:
+            return
+
+        # uzbrajamy tylko przy przejściu "ktoś w domu" -> "wszyscy poza domem"
+        # (rozbrojenie zdalne, gdy wszyscy są poza domem, nie zostanie nadpisane)
+        self._was_away = self.everyone_away()
+
+        @callback
+        def _presence(event: Event) -> None:
+            away = self.everyone_away()
+            if away and not self._was_away:
+                st = self.hass.states.get(self.arm_entity) if self.arm_entity else None
+                if not is_armed(st.state if st else None):
+                    self._schedule_auto()
+            elif not away:
+                if self._auto_unsub:
+                    _LOGGER.info("Sekurak: ktoś wrócił – nie uzbrajam")
+                self._cancel_auto()
+            self._was_away = away
+
+        self._unsubs.append(
+            async_track_state_change_event(self.hass, self.auto_trackers, _presence)
+        )
+
     # ---------- czujniki ----------
     @callback
     def async_listen(self) -> None:
+        self._listen_presence()
         by_entity: dict[str, list[dict]] = {}
         for s in self.sensors:
             if s.get("entity_id") and s.get("typ") in TYPES:
@@ -399,6 +515,7 @@ class Sekurak:
     def async_unload(self) -> None:
         self._drop_one_time()
         self._cancel_exit()
+        self._cancel_auto()
         for u in self._unsubs:
             u()
         self._unsubs.clear()
